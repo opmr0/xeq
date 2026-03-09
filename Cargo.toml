@@ -1,0 +1,26 @@
+[package]
+name = "xeq"
+version = "1.0.0"
+edition = "2021"
+description = "Run sequences of commands from a JSON file with a single word"
+license = "MIT"
+repository = "https://github.com/opmr0/xeq"
+homepage = "https://github.com/opmr0/xeq"
+documentation = "https://github.com/opmr0/xeq"
+readme = "README.md"
+keywords = ["cli", "commands", "runner", "automation", "scripts"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+clap = { version = "4.5.60", features = ["derive"] }
+clearscreen = "4.0.5"
+colored = "3.1.1"
+confy = "0.6.1"
+dirs = "6.0.0"
+dunce = "1.0.5"
+open = "5.3.3"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+
+[dev-dependencies]
+tempfile = "3"

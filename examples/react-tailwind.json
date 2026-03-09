@@ -1,0 +1,23 @@
+{
+    "setup": {
+        "run": [
+            "npm create vite@latest my-app -- --template react",
+            "cd my-app",
+            "npm install",
+            "npm install -D tailwindcss postcss autoprefixer",
+            "npx tailwindcss init -p"
+        ]
+    },
+    "dev": {
+        "run": [
+            "cd my-app",
+            "npm run dev"
+        ]
+    },
+    "build": {
+        "run": [
+            "cd my-app",
+            "npm run build"
+        ]
+    }
+}

@@ -1,0 +1,22 @@
+{
+    "sync": {
+        "run": [
+            "git fetch origin",
+            "git pull origin main"
+        ]
+    },
+    "push": {
+        "run": [
+            "git add .",
+            "git commit -m 'update'",
+            "git push origin main"
+        ]
+    },
+    "fresh": {
+        "run": [
+            "git stash",
+            "git pull origin main",
+            "git stash pop"
+        ]
+    }
+}
