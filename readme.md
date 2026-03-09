@@ -2,8 +2,6 @@
 
 <img src="./logo.png" alt="logo" width="120"/>
 
-<br/>
-
 # xeq
 
 Run sequences of commands from a JSON file with a single word.
@@ -124,7 +122,7 @@ xeq list
 
 Output:
 ```
-[xeq] build runs:
+build runs:
     cargo fmt
     cargo clippy
     cargo build --release
@@ -150,6 +148,37 @@ You can define as many scripts as you want in a single file. Each script is a na
 
 ---
 
+## Nested scripts (<i>beta</i>)
+
+You can define nested scripts using `xeq://task_name` syntax in the JSON file
+
+#### example
+```json
+{
+    "setup": {
+        "run": [
+            "npm install"
+        ]
+    },
+    "build": {
+        "run": [
+            "npm run build"
+        ]
+    },
+    "deploy": {
+        "run": [
+            "xeq://setup",
+            "xeq://build",
+            "npm run deploy"
+        ]
+    }
+}
+```
+
+`deploy` script runs both `build` and `setup` scripts respectively without needing to run both
+
+
+
 ## How It Works
 
 - Commands run sequentially, one at a time
@@ -168,6 +197,7 @@ See the [`examples/`](./examples) folder for ready-to-use JSON files:
 - `rust-project.json` — Rust project workflow
 - `docker-app.json` — Docker Compose workflow
 - `git-workflow.json` — Common git operations
+- `scripts-nesting.json` — Example on nested tasks
 
 ---
 

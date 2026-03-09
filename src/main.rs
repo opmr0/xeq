@@ -36,7 +36,7 @@ enum Command {
         path: Option<PathBuf>,
     },
     Run {
-        script: String,
+        script_name: String,
         #[arg(short = 'C', long, help = "Keep running even if a command fails")]
         continue_on_err: bool,
         #[arg(short, long, help = "Clear the screen between commands")]
@@ -133,6 +133,104 @@ fn validate_or_exit() {
     }
 }
 
+fn run(script_name: String, continue_on_err: bool, clear: bool, quiet: bool) {
+    validate_or_exit();
+    let scripts = match read_scripts() {
+        Ok(x) => x,
+        Err(e) => {
+            err!("{}", e);
+            process::exit(1);
+        }
+    };
+
+    let script = match scripts.get(&script_name) {
+        Some(x) => x,
+        None => {
+            err!("Script '{}' not found.", script_name);
+            if !continue_on_err{
+                process::exit(1);
+            }else {
+                return;
+            }
+        }
+    };
+
+    let total = script.run.len();
+    for (i, line) in script.run.iter().enumerate() {
+        if clear {
+            clearscreen::clear().unwrap();
+        }
+
+        log!(quiet, "[{}/{}] {}", i + 1, total, line.yellow());
+        if line.starts_with("xeq://") {
+            let name = line[6..].to_owned();
+            log!(
+                quiet,
+                "Calling script \'{}\'----------------",
+                name.purple()
+            );
+            run(name, continue_on_err, clear, quiet);
+            continue;
+        }
+        if line.starts_with("cd ") {
+            let arg = line[3..].trim();
+            let path = match arg.is_empty() {
+                true => dirs::home_dir().unwrap_or_else(|| PathBuf::from("/")),
+                false => PathBuf::from(arg),
+            };
+            if let Err(e) = env::set_current_dir(&path) {
+                err!("cd: {}: {}", path.display(), e);
+                if !continue_on_err {
+                    process::exit(1);
+                }
+            } else {
+                log!(
+                    quiet,
+                    "Changing directory to {}",
+                    path.display().to_string().yellow()
+                );
+            }
+            continue;
+        }
+
+        #[cfg(target_os = "windows")]
+        let mut cmd = std::process::Command::new("cmd");
+        #[cfg(target_os = "windows")]
+        cmd.args(["/C", line]);
+
+        #[cfg(not(target_os = "windows"))]
+        let mut cmd = std::process::Command::new("sh");
+        #[cfg(not(target_os = "windows"))]
+        cmd.args(["-c", line]);
+
+        let status = cmd
+            .spawn()
+            .expect("failed to spawn")
+            .wait()
+            .expect("failed to wait");
+
+        if !status.success() {
+            err!(
+                "Command failed with exit code {}.",
+                status.code().unwrap_or(-1)
+            );
+            if !continue_on_err {
+                process::exit(status.code().unwrap_or(1));
+            }
+        } else {
+            log!(quiet, "{}", "Done".green());
+        }
+    }
+
+    log!(
+        quiet,
+        "{} \'{}\' {}----------------",
+        "script",
+        script_name,
+        "commands are completed".green().bold()
+    );
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -166,84 +264,12 @@ fn main() {
         }
 
         Command::Run {
-            script,
+            script_name,
             continue_on_err,
             clear,
             quiet,
         } => {
-            validate_or_exit();
-
-            let scripts = match read_scripts() {
-                Ok(x) => x,
-                Err(e) => {
-                    err!("{}", e);
-                    process::exit(1);
-                }
-            };
-
-            let script = match scripts.get(&script) {
-                Some(x) => x,
-                None => {
-                    err!("Script '{}' not found.", script);
-                    process::exit(1);
-                }
-            };
-
-            let total = script.run.len();
-            for (i, line) in script.run.iter().enumerate() {
-                if clear {
-                    clearscreen::clear().unwrap();
-                }
-
-                log!(quiet, "[{}/{}] {}", i + 1, total, line.yellow());
-
-                if line.starts_with("cd ") {
-                    let arg = line[3..].trim();
-                    let path = match arg.is_empty() {
-                        true => dirs::home_dir().unwrap_or_else(|| PathBuf::from("/")),
-                        false => PathBuf::from(arg),
-                    };
-                    if let Err(e) = env::set_current_dir(&path) {
-                        err!("cd: {}: {}", path.display(), e);
-                        if !continue_on_err {
-                            process::exit(1);
-                        }
-                    } else {
-                        log!(quiet, "cd {}", path.display().to_string().yellow());
-                    }
-                    continue;
-                }
-
-                #[cfg(target_os = "windows")]
-                let mut cmd = std::process::Command::new("cmd");
-                #[cfg(target_os = "windows")]
-                cmd.args(["/C", line]);
-
-                #[cfg(not(target_os = "windows"))]
-                let mut cmd = std::process::Command::new("sh");
-                #[cfg(not(target_os = "windows"))]
-                cmd.args(["-c", line]);
-
-                let status = cmd
-                    .spawn()
-                    .expect("failed to spawn")
-                    .wait()
-                    .expect("failed to wait");
-
-                if !status.success() {
-                    err!(
-                        "Command failed with exit code {}.",
-                        status.code().unwrap_or(-1)
-                    );
-                    if !continue_on_err {
-                        process::exit(status.code().unwrap_or(1));
-                    }
-                } else {
-                    log!(quiet, "{}", "Done".green());
-                }
-            }
-
-            log!(quiet, "{}", "All commands completed".green().bold());
+            run(script_name, continue_on_err, clear, quiet);
         }
         Command::List => {
             validate_or_exit();
@@ -485,4 +511,27 @@ mod tests {
         assert_eq!(script.run.len(), 1);
         assert_eq!(script.run[0], "echo hello");
     }
+}
+
+#[test]
+fn script_chaining_target_exists() {
+    let scripts: HashMap<String, Script> = serde_json::from_str(r#"{
+        "build": { "run": ["xeq://setup", "cargo build"] },
+        "setup": { "run": ["echo setting up"] }
+    }"#).unwrap();
+    
+    let build = scripts.get("build").unwrap();
+    let chain_target = &build.run[0]["xeq://".len()..];
+    assert!(scripts.get(chain_target).is_some());
+}
+
+#[test]
+fn script_chaining_target_missing() {
+    let scripts: HashMap<String, Script> = serde_json::from_str(r#"{
+        "build": { "run": ["xeq://nonexistent"] }
+    }"#).unwrap();
+    
+    let build = scripts.get("build").unwrap();
+    let chain_target = &build.run[0]["xeq://".len()..];
+    assert!(scripts.get(chain_target).is_none());
 }
