@@ -148,7 +148,7 @@ You can define as many scripts as you want in a single file. Each script is a na
 
 ---
 
-## Nested scripts (<i>beta</i>)
+## Nested scripts 
 
 You can define nested scripts using `xeq://task_name` syntax in the JSON file
 
@@ -177,6 +177,30 @@ You can define nested scripts using `xeq://task_name` syntax in the JSON file
 
 `deploy` script runs both `build` and `setup` scripts respectively without needing to run both
 
+## Arguments
+
+You can pass arguments to your scripts and reference them with `{{1}}`, `{{2}}`, etc.
+```json
+{
+    "greet": {
+        "run": [
+            "echo Hello {{1}}!",
+            "echo You are {{2}} years old."
+        ]
+    }
+}
+```
+```
+xeq run greet John 26
+```
+
+Output:
+```
+Hello Omar!
+You are 25 years old.
+```
+
+Arguments are optional — if not provided, the placeholder will be passed as-is to the shell.
 
 
 ## How It Works

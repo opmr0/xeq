@@ -2,9 +2,11 @@ use clap::{Parser, Subcommand};
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
+use std::thread;
 use std::{env, io, process};
 
 const PREFIX: &str = "[xeq]";
@@ -43,6 +45,10 @@ enum Command {
         clear: bool,
         #[arg(short, long, help = "Suppress xeq output")]
         quiet: bool,
+        #[arg(short, long)]
+        parallel: bool,
+        #[arg(short, long, num_args = 1..)]
+        args: Option<Vec<String>>,
     },
     List,
 }
@@ -133,43 +139,108 @@ fn validate_or_exit() {
     }
 }
 
-fn run(script_name: String, continue_on_err: bool, clear: bool, quiet: bool) {
-    validate_or_exit();
-    let scripts = match read_scripts() {
-        Ok(x) => x,
-        Err(e) => {
-            err!("{}", e);
-            process::exit(1);
-        }
-    };
+fn replace_args(line: &str, args: &[String]) -> String {
+    let mut line = line.to_owned();
+    for (i, arg) in args.iter().enumerate() {
+        let placeholder = format!("{{{{{}}}}}", i + 1);
+        line = line.replace(&placeholder, arg);
+    }
+    line
+}
 
+fn spawn_command(line: &str) -> std::process::Child {
+    #[cfg(target_os = "windows")]
+    return std::process::Command::new("cmd")
+        .args(["/C", line])
+        .spawn()
+        .expect("failed to spawn");
+
+    #[cfg(not(target_os = "windows"))]
+    return std::process::Command::new("sh")
+        .args(["-c", line])
+        .spawn()
+        .expect("failed to spawn");
+}
+
+fn run(
+    script_name: String,
+    continue_on_err: bool,
+    clear: bool,
+    quiet: bool,
+    parallel: bool,
+    scripts: &Scripts,
+    visited: &mut HashSet<String>,
+    args: Option<Vec<String>>,
+) {
     let script = match scripts.get(&script_name) {
         Some(x) => x,
         None => {
             err!("Script '{}' not found.", script_name);
-            if !continue_on_err{
+            if !continue_on_err {
                 process::exit(1);
-            }else {
+            } else {
                 return;
             }
         }
     };
+
+    if parallel {
+        log!(quiet, "{}", "running in parallel".purple());
+        let handles: Vec<_> = script
+            .run
+            .iter()
+            .map(|line| {
+                let line = line.clone();
+                thread::spawn(move || spawn_command(&line).wait().expect("Failed to wait"))
+            })
+            .collect();
+        for handle in handles {
+            handle.join().unwrap();
+        }
+        return;
+    }
 
     let total = script.run.len();
     for (i, line) in script.run.iter().enumerate() {
         if clear {
             clearscreen::clear().unwrap();
         }
+        let mut line = line.clone();
+
+        if line.contains("{{") && args.is_none() {
+            err!(
+                "Script '{}' expects arguments but none were provided.",
+                script_name
+            );
+            process::exit(1);
+        } else if let Some(ref args) = args {
+            line = replace_args(&line, args);
+        }
 
         log!(quiet, "[{}/{}] {}", i + 1, total, line.yellow());
         if line.starts_with("xeq://") {
             let name = line[6..].to_owned();
+            if visited.contains(&name) {
+                err!("Circular dependency detected: '{}'", script_name);
+                process::exit(1);
+            }
+            visited.insert(name.clone());
             log!(
                 quiet,
                 "Calling script \'{}\'----------------",
                 name.purple()
             );
-            run(name, continue_on_err, clear, quiet);
+            run(
+                name.clone(),
+                continue_on_err,
+                clear,
+                quiet,
+                parallel,
+                &scripts,
+                visited,
+                args.clone(),
+            );
+            visited.remove(&name);
             continue;
         }
         if line.starts_with("cd ") {
@@ -193,21 +264,7 @@ fn run(script_name: String, continue_on_err: bool, clear: bool, quiet: bool) {
             continue;
         }
 
-        #[cfg(target_os = "windows")]
-        let mut cmd = std::process::Command::new("cmd");
-        #[cfg(target_os = "windows")]
-        cmd.args(["/C", line]);
-
-        #[cfg(not(target_os = "windows"))]
-        let mut cmd = std::process::Command::new("sh");
-        #[cfg(not(target_os = "windows"))]
-        cmd.args(["-c", line]);
-
-        let status = cmd
-            .spawn()
-            .expect("failed to spawn")
-            .wait()
-            .expect("failed to wait");
+        let status = spawn_command(&line).wait().expect("Failed to wait");
 
         if !status.success() {
             err!(
@@ -268,8 +325,28 @@ fn main() {
             continue_on_err,
             clear,
             quiet,
+            args,
+            parallel,
         } => {
-            run(script_name, continue_on_err, clear, quiet);
+            validate_or_exit();
+            let mut visited = HashSet::new();
+            let scripts = match read_scripts() {
+                Ok(x) => x,
+                Err(e) => {
+                    err!("{}", e);
+                    process::exit(1);
+                }
+            };
+            run(
+                script_name,
+                continue_on_err,
+                clear,
+                quiet,
+                parallel,
+                &scripts,
+                &mut visited,
+                args,
+            );
         }
         Command::List => {
             validate_or_exit();
@@ -511,27 +588,160 @@ mod tests {
         assert_eq!(script.run.len(), 1);
         assert_eq!(script.run[0], "echo hello");
     }
-}
 
-#[test]
-fn script_chaining_target_exists() {
-    let scripts: HashMap<String, Script> = serde_json::from_str(r#"{
-        "build": { "run": ["xeq://setup", "cargo build"] },
-        "setup": { "run": ["echo setting up"] }
-    }"#).unwrap();
-    
-    let build = scripts.get("build").unwrap();
-    let chain_target = &build.run[0]["xeq://".len()..];
-    assert!(scripts.get(chain_target).is_some());
-}
+    #[test]
+    fn script_chaining_target_exists() {
+        let scripts: HashMap<String, Script> = serde_json::from_str(
+            r#"{
+            "build": { "run": ["xeq://setup", "cargo build"] },
+            "setup": { "run": ["echo setting up"] }
+        }"#,
+        )
+        .unwrap();
 
-#[test]
-fn script_chaining_target_missing() {
-    let scripts: HashMap<String, Script> = serde_json::from_str(r#"{
-        "build": { "run": ["xeq://nonexistent"] }
-    }"#).unwrap();
-    
-    let build = scripts.get("build").unwrap();
-    let chain_target = &build.run[0]["xeq://".len()..];
-    assert!(scripts.get(chain_target).is_none());
+        let build = scripts.get("build").unwrap();
+        let chain_target = &build.run[0]["xeq://".len()..];
+        assert!(scripts.get(chain_target).is_some());
+    }
+
+    #[test]
+    fn script_chaining_target_missing() {
+        let scripts: HashMap<String, Script> = serde_json::from_str(
+            r#"{
+            "build": { "run": ["xeq://nonexistent"] }
+        }"#,
+        )
+        .unwrap();
+
+        let build = scripts.get("build").unwrap();
+        let chain_target = &build.run[0]["xeq://".len()..];
+        assert!(scripts.get(chain_target).is_none());
+    }
+
+    #[test]
+    fn args_replaces_single_placeholder() {
+        let line = "echo {{1}}".to_string();
+        let args = vec!["Omar".to_string()];
+        let result = replace_args(&line, &args);
+        assert_eq!(result, "echo Omar");
+    }
+
+    #[test]
+    fn args_replaces_multiple_placeholders() {
+        let line = "echo {{1}} {{2}}".to_string();
+        let args = vec!["Hello".to_string(), "World".to_string()];
+        let result = replace_args(&line, &args);
+        assert_eq!(result, "echo Hello World");
+    }
+
+    #[test]
+    fn args_no_placeholder_unchanged() {
+        let line = "echo hello".to_string();
+        let args = vec!["Omar".to_string()];
+        let result = replace_args(&line, &args);
+        assert_eq!(result, "echo hello");
+    }
+
+    #[test]
+    fn args_missing_arg_leaves_placeholder() {
+        let line = "echo {{1}} {{2}}".to_string();
+        let args = vec!["Omar".to_string()];
+        let result = replace_args(&line, &args);
+        assert_eq!(result, "echo Omar {{2}}");
+    }
+
+    #[test]
+    fn args_empty_args_unchanged() {
+        let line = "echo {{1}}".to_string();
+        let result = replace_args(&line, &[]);
+        assert_eq!(result, "echo {{1}}");
+    }
+
+    #[test]
+    fn args_detects_placeholder() {
+        assert!("echo {{1}}".contains("{{"));
+        assert!(!"echo hello".contains("{{"));
+    }
+
+    #[test]
+    fn xeq_prefix_detected() {
+        assert!("xeq://setup".starts_with("xeq://"));
+    }
+
+    #[test]
+    fn xeq_prefix_not_detected_on_regular_command() {
+        assert!(!"echo hello".starts_with("xeq://"));
+    }
+
+    #[test]
+    fn xeq_prefix_extraction() {
+        let line = "xeq://setup";
+        assert_eq!(&line["xeq://".len()..], "setup");
+    }
+
+    #[test]
+    fn xeq_prefix_extraction_with_dashes() {
+        assert_eq!(&"xeq://my-script"["xeq://".len()..], "my-script");
+    }
+
+    #[test]
+    fn xeq_partial_prefix_not_detected() {
+        assert!(!"xeq:setup".starts_with("xeq://"));
+        assert!(!"xeq//setup".starts_with("xeq://"));
+    }
+
+    #[test]
+    fn xeq_chaining_target_missing() {
+        let scripts: HashMap<String, Script> = serde_json::from_str(
+            r#"{
+            "build": { "run": ["xeq://nonexistent"] }
+        }"#,
+        )
+        .unwrap();
+        let chain_target = &"xeq://nonexistent"["xeq://".len()..];
+        assert!(scripts.get(chain_target).is_none());
+    }
+
+    #[test]
+    fn circular_dependency_detected() {
+        let mut visited = HashSet::new();
+        visited.insert("a".to_string());
+        visited.insert("b".to_string());
+        assert!(visited.contains("a"));
+    }
+
+    #[test]
+    fn no_circular_dependency() {
+        let mut visited = HashSet::new();
+        visited.insert("a".to_string());
+        assert!(!visited.contains("b"));
+    }
+
+    #[test]
+    fn visited_cleared_after_script_completes() {
+        let mut visited = HashSet::new();
+        visited.insert("setup".to_string());
+        visited.remove("setup");
+        assert!(!visited.contains("setup"));
+    }
+
+    #[test]
+    fn same_script_can_run_twice_if_not_active() {
+        let mut visited = HashSet::new();
+        visited.insert("setup".to_string());
+        visited.remove("setup");
+
+        assert!(!visited.contains("setup"));
+        visited.insert("setup".to_string());
+        assert!(visited.contains("setup"));
+    }
+
+    #[test]
+    fn triangular_dependency_detected() {
+        let mut visited = HashSet::new();
+        visited.insert("a".to_string());
+        visited.insert("b".to_string());
+        visited.insert("c".to_string());
+        assert!(visited.contains("a"));
+    }
 }
