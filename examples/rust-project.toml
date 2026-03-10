@@ -1,0 +1,8 @@
+[new]
+run = ["cargo new my-app", "cd my-app", "git init"]
+
+[check]
+run = ["cargo fmt", "cargo clippy", "cargo test"]
+
+[release]
+run = ["cargo build --release"]

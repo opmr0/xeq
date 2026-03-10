@@ -1,0 +1,14 @@
+[setup]
+run = [
+    "npm create vite@latest {{1}} -- --template react",
+    "cd {{1}}",
+    "npm install",
+    "npm install -D tailwindcss postcss autoprefixer",
+    "npx tailwindcss init -p",
+]
+
+[dev]
+run = ["cd {{1}}", "npm run dev"]
+
+[build]
+run = ["cd {{1}}", "npm run build"]

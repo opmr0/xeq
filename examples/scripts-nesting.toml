@@ -1,0 +1,8 @@
+[setup]
+run = ["npm install"]
+
+[build]
+run = ["npm run build"]
+
+[deploy]
+run = ["xeq://setup", "xeq://build", "npm run deploy"]
