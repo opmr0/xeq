@@ -1,6 +1,6 @@
-use colored::Colorize;
 use std::{collections::HashSet, env, path::PathBuf, process, thread};
 
+use crate::types::ScriptOption::*;
 use crate::types::Scripts;
 
 #[derive(Clone, Copy)]
@@ -55,19 +55,19 @@ pub fn run(
     };
 
     if let Some(script_options) = &script.options {
-        if script_options.contains(&"continue_on_err".to_owned()) {
+        if script_options.contains(&ContinueOnErr) {
             opts.continue_on_err = !opts.continue_on_err
         }
-        if script_options.contains(&"quiet".to_owned()) {
+        if script_options.contains(&Quiet) {
             opts.quiet = !opts.quiet
         }
-        if script_options.contains(&"clear".to_owned()) {
+        if script_options.contains(&Clear) {
             opts.clear = !opts.clear
         }
-        if script_options.contains(&"parallel".to_owned()) {
+        if script_options.contains(&Parallel) {
             opts.parallel = !opts.parallel
         }
-        if script_options.contains(&"allow_recursion".to_owned()) {
+        if script_options.contains(&AllowRecursion) {
             opts.allow_recursion = !opts.allow_recursion
         }
     }
@@ -77,6 +77,20 @@ pub fn run(
         let handles: Vec<_> = script
             .run
             .iter()
+            .filter(|line| {
+                if line.starts_with("cd ") {
+                    err!("'cd' is not supported in parallel mode, skipping: {}", line);
+                    return false;
+                }
+                if line.starts_with("xeq://") {
+                    err!(
+                        "nested scripts are not supported in parallel mode, skipping: {}",
+                        line
+                    );
+                    return false;
+                }
+                true
+            })
             .map(|line| {
                 let line = line.clone();
                 thread::spawn(move || spawn_command(&line).wait().expect("Failed to wait"))
@@ -170,7 +184,6 @@ pub fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashSet;
     use tempfile::TempDir;
 
     #[test]
@@ -219,36 +232,6 @@ mod tests {
     }
 
     #[test]
-    fn cd_detection_starts_with_cd_space() {
-        assert!("cd /tmp".starts_with("cd "));
-    }
-
-    #[test]
-    fn cd_detection_plain_cd_no_space() {
-        assert!(!"cd".starts_with("cd "));
-    }
-
-    #[test]
-    fn cd_detection_other_command() {
-        assert!(!"echo cd".starts_with("cd "));
-    }
-
-    #[test]
-    fn cd_arg_extraction_normal_path() {
-        assert_eq!("cd /tmp/folder"[3..].trim(), "/tmp/folder");
-    }
-
-    #[test]
-    fn cd_arg_extraction_with_spaces() {
-        assert_eq!("cd   /tmp/folder  "[3..].trim(), "/tmp/folder");
-    }
-
-    #[test]
-    fn cd_arg_extraction_empty_gives_empty() {
-        assert!("cd "[3..].trim().is_empty());
-    }
-
-    #[test]
     fn cd_set_current_dir_valid_path() {
         let dir = TempDir::new().unwrap();
         assert!(std::env::set_current_dir(dir.path()).is_ok());
@@ -257,74 +240,5 @@ mod tests {
     #[test]
     fn cd_set_current_dir_invalid_path() {
         assert!(std::env::set_current_dir("/nonexistent/path/xyz").is_err());
-    }
-
-    #[test]
-    fn xeq_prefix_detected() {
-        assert!("xeq://setup".starts_with("xeq://"));
-    }
-
-    #[test]
-    fn xeq_prefix_not_detected_on_regular_command() {
-        assert!(!"echo hello".starts_with("xeq://"));
-    }
-
-    #[test]
-    fn xeq_prefix_extraction() {
-        let line = "xeq://setup";
-        assert_eq!(&line["xeq://".len()..], "setup");
-    }
-
-    #[test]
-    fn xeq_prefix_extraction_with_dashes() {
-        assert_eq!(&"xeq://my-script"["xeq://".len()..], "my-script");
-    }
-
-    #[test]
-    fn xeq_partial_prefix_not_detected() {
-        assert!(!"xeq:setup".starts_with("xeq://"));
-        assert!(!"xeq//setup".starts_with("xeq://"));
-    }
-
-    #[test]
-    fn circular_dependency_detected() {
-        let mut visited = HashSet::new();
-        visited.insert("a".to_string());
-        visited.insert("b".to_string());
-        assert!(visited.contains("a"));
-    }
-
-    #[test]
-    fn no_circular_dependency() {
-        let mut visited = HashSet::new();
-        visited.insert("a".to_string());
-        assert!(!visited.contains("b"));
-    }
-
-    #[test]
-    fn visited_cleared_after_script_completes() {
-        let mut visited = HashSet::new();
-        visited.insert("setup".to_string());
-        visited.remove("setup");
-        assert!(!visited.contains("setup"));
-    }
-
-    #[test]
-    fn same_script_can_run_twice_if_not_active() {
-        let mut visited = HashSet::new();
-        visited.insert("setup".to_string());
-        visited.remove("setup");
-        assert!(!visited.contains("setup"));
-        visited.insert("setup".to_string());
-        assert!(visited.contains("setup"));
-    }
-
-    #[test]
-    fn triangular_dependency_detected() {
-        let mut visited = HashSet::new();
-        visited.insert("a".to_string());
-        visited.insert("b".to_string());
-        visited.insert("c".to_string());
-        assert!(visited.contains("a"));
     }
 }

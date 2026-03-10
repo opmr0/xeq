@@ -4,6 +4,19 @@ All notable changes to xeq will be documented here.
 
 ---
 
+## [v1.4.0] - 2026-03-11
+
+### Added
+- `--global` / `-g` flag for `xeq run` and `xeq list` — explicitly use the saved global path instead of the local file
+- Local `xeq.toml` auto-detection — xeq now looks for a `xeq.toml` in the current directory first, falling back to the saved path
+- `xeq init` creates a new file named `xeq.toml`
+
+### Changed
+- Script `options` now use a typed enum instead of raw strings — unknown options will error at parse time instead of silently doing nothing
+- Parallel mode now warns when `cd` or `xeq://` commands are skipped instead of silently ignoring them
+
+---
+
 ## [v1.3.0] - 2025-03-10
 
 ### Added

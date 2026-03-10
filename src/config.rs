@@ -46,8 +46,26 @@ pub fn load_path() -> Option<PathBuf> {
     Some(config.path)
 }
 
-pub fn read_scripts() -> Result<Scripts, std::io::Error> {
-    let path = load_path().ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, ""))?;
+pub fn read_scripts(global: bool) -> Result<Scripts, std::io::Error> {
+    let file_path = PathBuf::from("./xeq.toml");
+
+    let path = if global {
+        load_path().ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                "xeq is not configured. Run: xeq config <path/to/file.toml>",
+            )
+        })?
+    } else if file_path.exists() {
+        file_path
+    } else {
+        load_path().ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                "xeq is not configured. Run: xeq config <path/to/file.toml>",
+            )
+        })?
+    };
 
     let content = fs::read_to_string(path)?;
     toml::from_str::<Scripts>(&content).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))

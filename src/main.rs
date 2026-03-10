@@ -37,10 +37,16 @@ enum Command {
         parallel: bool,
         #[arg(long)]
         allow_recursion: bool,
+        #[arg(long, short)]
+        global: bool,
         #[arg(short, long, num_args = 1..)]
         args: Option<Vec<String>>,
     },
-    List,
+    List {
+        #[arg(long, short)]
+        global: bool,
+    },
+    Init,
 }
 
 fn validate_or_exit() {
@@ -94,10 +100,11 @@ fn main() {
             args,
             parallel,
             allow_recursion,
+            global,
         } => {
             validate_or_exit();
             let mut visited = HashSet::new();
-            let scripts = match read_scripts() {
+            let scripts = match read_scripts(global) {
                 Ok(x) => x,
                 Err(e) => {
                     err!("{}", e);
@@ -115,19 +122,40 @@ fn main() {
 
             run(script_name, &scripts, &mut visited, args, opts);
         }
-        Command::List => {
+        Command::List { global } => {
             validate_or_exit();
             log!(false, "Listing tasks... \n");
-            let content = read_scripts().unwrap();
+            let content = read_scripts(global).unwrap();
             for s in content {
                 println!(
-                    "{} runs: --- options: {:?}",
-                    s.0.cyan(),
-                    s.1.options.unwrap_or_default()
+                    "{} --- {} \n runs:",
+                    s.0.cyan().bold(),
+                    s.1.description
+                        .unwrap_or("No description provided".to_owned())
+                        .italic()
                 );
                 for c in s.1.run.iter() {
                     println!("\t{}", c.yellow())
                 }
+            }
+        }
+        Command::Init => {
+            let path = "./xeq.toml";
+
+            if std::path::Path::new(path).exists() {
+                err!("xeq.toml already exists in this directory");
+                return;
+            }
+
+            let content = r#"[setup]
+run = [
+    "echo hello from xeq"
+]
+"#;
+
+            match std::fs::write(path, content) {
+                Ok(_) => log!(false, "created xeq.toml"),
+                Err(e) => err!("failed to create xeq.toml: {}", e)
             }
         }
     }

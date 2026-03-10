@@ -6,9 +6,20 @@ pub struct SavedPath {
     pub path: PathBuf,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum ScriptOption {
+    Quiet,
+    Clear,
+    Parallel,
+    ContinueOnErr,
+    AllowRecursion,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Script {
-    pub options: Option<Vec<String>>,
+    pub description: Option<String>,
+    pub options: Option<Vec<ScriptOption>>,
     pub run: Vec<String>,
 }
 
@@ -34,6 +45,7 @@ run = []
     #[test]
     fn script_struct_serializes_correctly() {
         let script = Script {
+            description:None,
             options: None,
             run: vec!["echo hi".to_string(), "echo bye".to_string()],
         };

@@ -30,6 +30,7 @@ xeq run setup
 - [Features](#features)
   - [Script Options](#script-options)
   - [Nested Scripts](#nested-scripts)
+  - [Local Config](#local-configuration)
   - [Arguments](#arguments)
   - [Parallel Execution](#parallel-execution)
 - [How It Works](#how-it-works)
@@ -51,16 +52,19 @@ xeq gives you a better option. Write your commands in a `xeq.toml` file, commit 
 ## Installation
 
 **macOS / Linux**
+
 ```bash
 curl -sSf https://raw.githubusercontent.com/opmr0/xeq/main/install.sh | sh
 ```
 
 **Windows (PowerShell)**
+
 ```powershell
 iwr https://raw.githubusercontent.com/opmr0/xeq/main/install.ps1 -UseBasicParsing | iex
 ```
 
 **Via cargo**
+
 ```bash
 cargo install xeq
 ```
@@ -83,11 +87,13 @@ run = ["npm run dev"]
 ```
 
 **2. Tell xeq where the file is (one time only):**
+
 ```bash
 xeq config ./xeq.toml
 ```
 
 **3. Run any script by name:**
+
 ```bash
 xeq run setup
 xeq run dev
@@ -124,16 +130,27 @@ xeq run greet --args Alice 30
 
 **Available flags:**
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--continue-on-err` | `-C` | Keep going even if a command fails |
-| `--quiet` | `-q` | Hide xeq's own log messages, only show command output |
-| `--clear` | `-c` | Clear the terminal before each command |
-| `--parallel` | `-p` | Run all commands at the same time instead of one by one |
-| `--allow-recursion` | | Let a script call itself (disabled by default to prevent infinite loops) |
-| `--args <values...>` | `-a` | Pass arguments into the script |
+| Flag                 | Short | Description                                                              |
+| -------------------- | ----- | ------------------------------------------------------------------------ |
+| `--continue-on-err`  | `-C`  | Keep going even if a command fails                                       |
+| `--quiet`            | `-q`  | Hide xeq's own log messages, only show command output                    |
+| `--clear`            | `-c`  | Clear the terminal before each command                                   |
+| `--parallel`         | `-p`  | Run all commands at the same time instead of one by one                  |
+| `--allow-recursion`  |       | Let a script call itself (disabled by default to prevent infinite loops) |
+| `--args <values...>` | `-a`  | Pass arguments into the script                                           |
+| `--global`           | `-g`  | Use the globally saved path instead of the local `xeq.toml`              |
 
 ---
+
+### `xeq init`
+
+Generate a starter `xeq.toml` in the current directory:
+
+```bash
+xeq init
+```
+
+## This creates a `xeq.toml` with a sample script to get you started. If a `xeq.toml` already exists, xeq will not overwrite it.
 
 ### `xeq list`
 
@@ -158,6 +175,8 @@ A `xeq.toml` file is a list of named scripts. Each script has a `run` array of s
 
 ```toml
 [script-name]
+option = ["quiet"]
+description = "A simple description"
 run = [
     "command one",
     "command two",
@@ -166,6 +185,8 @@ run = [
 ```
 
 Scripts are case-sensitive. You can define as many as you want in a single file.
+
+descriptions felid doesn't affect the script, it just appear in `xeq list`
 
 ---
 
@@ -185,7 +206,9 @@ Now `xeq run build` always runs quietly and in parallel — no flags needed.
 
 **Available options:** `quiet`, `clear`, `parallel`, `continue_on_err`, `allow_recursion`
 
-**Toggling:** CLI flags *toggle* options. If `quiet` is set in TOML and you pass `--quiet` on the CLI, it turns quiet *off* for that run. This lets you override script defaults without editing the file.
+> _Note_: Invalid options will cause a parse error before any commands run.
+
+**Toggling:** CLI flags _toggle_ options. If `quiet` is set in TOML and you pass `--quiet` on the CLI, it turns quiet _off_ for that run. This lets you override script defaults without editing the file.
 
 ```bash
 xeq run build --quiet    # quiet is ON in TOML, this toggles it OFF
@@ -215,6 +238,19 @@ run = [
 Running `xeq run deploy` automatically runs `install` and `build` first.
 
 > **Circular dependency protection:** xeq tracks which scripts are currently running. If a script tries to call itself (directly or through a chain), xeq exits with an error. Pass `--allow-recursion` or add it to `options` if you intentionally want recursive behavior.
+
+---
+
+### Local Configuration
+
+xeq automatically looks for a `xeq.toml` in the current directory. If none is found, it falls back to the globally saved path.
+
+To always use the global path, pass `-g` / `--global`:
+
+```bash
+xeq run setup --global
+xeq list --global
+```
 
 ---
 
@@ -278,14 +314,14 @@ xeq run check -p     # same, using the CLI flag
 
 The [`examples/`](./examples) folder has ready-to-use TOML files for common workflows:
 
-| File | What it does |
-|------|-------------|
-| `react-tailwind.toml` | Scaffold a React + Tailwind CSS project |
-| `nextjs.toml` | Set up a Next.js project with TypeScript |
-| `rust-project.toml` | Format, lint, test, and release a Rust project |
-| `docker-app.toml` | Start, stop, rebuild, and tail logs for Docker Compose |
-| `git-workflow.toml` | Sync, push, and stash/pop git operations |
-| `scripts-nesting.toml` | Example of calling scripts from within scripts |
+| File                   | What it does                                           |
+| ---------------------- | ------------------------------------------------------ |
+| `react-tailwind.toml`  | Scaffold a React + Tailwind CSS project                |
+| `nextjs.toml`          | Set up a Next.js project with TypeScript               |
+| `rust-project.toml`    | Format, lint, test, and release a Rust project         |
+| `docker-app.toml`      | Start, stop, rebuild, and tail logs for Docker Compose |
+| `git-workflow.toml`    | Sync, push, and stash/pop git operations               |
+| `scripts-nesting.toml` | Example of calling scripts from within scripts         |
 
 ---
 
@@ -303,12 +339,14 @@ cargo test
 ```
 
 **Before submitting a PR:**
+
 - Run `cargo fmt` to format your code
 - Run `cargo clippy` and fix any warnings
 - Run `cargo test` and make sure all tests pass
 - If you're adding a new feature, add tests for it
 
 **Project structure:**
+
 ```
 src/
   main.rs       # CLI parsing and command dispatch
