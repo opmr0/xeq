@@ -4,6 +4,12 @@
 
 # xeq
 
+[![Crates.io](https://img.shields.io/crates/v/xeq)](https://crates.io/crates/xeq)
+[![Downloads](https://img.shields.io/crates/d/xeq)](https://crates.io/crates/xeq)
+[![License](https://img.shields.io/crates/l/xeq)](LICENSE)
+[![Build](https://github.com/opmr0/xeq/actions/workflows/release.yml/badge.svg)](https://github.com/opmr0/xeq/actions)
+[![Rust](https://img.shields.io/badge/rust-stable-orange)](https://www.rust-lang.org)
+
 **Run sequences of shell commands with a single word.**
 
 Define your commands once in a TOML file. Run them from anywhere, on any OS, without rewriting them every time.
