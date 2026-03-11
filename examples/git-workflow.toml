@@ -1,29 +1,44 @@
-# Git workflow
-# xeq run sync, save, fresh
-# example: xeq run save --args "fix: resolve login bug"
-
 [vars]
 branch = "main"
+remote = "origin"
 
 [sync]
 description = "Pull latest changes"
 run = [
-    "git fetch origin",
-    "git pull origin {{@branch}}"
+    "git fetch {{@remote}}",
+    "git pull {{@remote}} {{@branch}}"
 ]
 
 [save]
-description = "Stage, commit and push — pass commit message as arg"
+description = "Stage all, commit with message, and push"
 run = [
     "git add .",
     "git commit -m '{{1}}'",
-    "git push"
+    "git push {{@remote}} {{@branch}}"
 ]
 
-[fresh]
-description = "Stash changes, pull, then restore"
+[branch]
+description = "Create and switch to a new branch"
 run = [
-    "git stash",
-    "git pull origin {{@branch}}",
-    "git stash pop"
+    "git checkout -b {{1}}",
+    "git push -u {{@remote}} {{1}}"
 ]
+
+[release]
+description = "Tag and push a release"
+run = [
+    "git tag {{1}}",
+    "git push {{@remote}} {{1}}"
+]
+
+[undo]
+description = "Undo last commit but keep changes staged"
+run = ["git reset --soft HEAD~1"]
+
+[stash]
+description = "Stash current changes"
+run = ["git stash push -m '{{1}}'"]
+
+[clean]
+description = "Remove untracked files and folders"
+run = ["git clean -fd"]

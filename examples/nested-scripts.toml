@@ -1,0 +1,38 @@
+[install]
+description = "Install dependencies"
+run = ["npm install"]
+
+[lint]
+description = "Run linter"
+run = ["npm run lint"]
+
+[test]
+description = "Run tests"
+run = ["npm test"]
+
+[build]
+description = "Build the project"
+run = ["npm run build"]
+
+[ci]
+description = "Full CI pipeline: install, lint, test, build"
+run = [
+    "xeq://install",
+    "xeq://lint",
+    "xeq://test",
+    "xeq://build"
+]
+
+[deploy]
+description = "CI pipeline then deploy"
+run = [
+    "xeq://ci",
+    "npm run deploy"
+]
+
+[quick-check]
+description = "Lint and test without install or build"
+run = [
+    "xeq://lint",
+    "xeq://test"
+]

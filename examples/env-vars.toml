@@ -1,0 +1,48 @@
+# This file uses environment variables via {{$VARNAME}} syntax
+# Create a .env file in your project root with the values below
+#
+# .env example:
+# API_TOKEN=your_token_here
+# DEPLOY_ENV=production
+# AWS_REGION=us-east-1
+# DB_URL=postgres://localhost:5432/mydb
+# SLACK_WEBHOOK=https://hooks.slack.com/services/...
+# REGISTRY=docker.io/myorg
+
+[vars]
+app = "myapp"
+
+[deploy]
+description = "Deploy using env vars"
+run = [
+    "echo Deploying {{@app}} to {{$DEPLOY_ENV}}",
+    "deploy --token {{$API_TOKEN}} --region {{$AWS_REGION}}"
+]
+
+[db-migrate]
+description = "Run database migrations"
+run = [
+    "echo Running migrations on {{$DEPLOY_ENV}}",
+    "migrate -url {{$DB_URL}} up"
+]
+
+[notify]
+description = "Send a Slack notification"
+run = [
+    "curl -X POST {{$SLACK_WEBHOOK}} -H 'Content-type: application/json' -d '{\"text\": \"{{@app}} deployed to {{$DEPLOY_ENV}}\"}'"
+]
+
+[docker-push]
+description = "Push image to registry using env vars"
+run = [
+    "docker build -t {{$REGISTRY}}/{{@app}}:latest .",
+    "docker push {{$REGISTRY}}/{{@app}}:latest"
+]
+
+[release]
+description = "Full release: deploy, migrate, notify"
+run = [
+    "xeq://deploy",
+    "xeq://db-migrate",
+    "xeq://notify"
+]

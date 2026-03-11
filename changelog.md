@@ -4,6 +4,31 @@ All notable changes to xeq will be documented here.
 
 ---
 
+## v1.6.0
+
+### Added
+
+- **Environment variable interpolation** — use `{{$VARNAME}}` in any command to inject a system environment variable at runtime
+- **Automatic `.env` loading** — xeq now loads a `.env` file from the current directory automatically before any script runs, no manual setup needed
+- **`cd` operator support** — `cd` commands now support `&&`, `||`, `;`, `&`, and `!` operators instead of throwing an error
+  - `cd foo && bar` — run `bar` only if `cd` succeeded
+  - `cd foo || bar` — run `bar` only if `cd` failed
+  - `cd foo; bar` — always run `bar` regardless
+  - `cd foo & bar` — spawn `bar` in the background
+  - `! cd foo` — negate the result of `cd`
+
+### Fixed
+
+- **Parallel mode variable substitution** — variables (`{{@var}}`), positional args (`{{1}}`), and environment vars (`{{$VAR}}`) were not being resolved before commands were spawned in parallel mode. All substitution now happens before threads are created
+- **Parallel validation inside loop** — the `cd` and `xeq://` checks were running on every loop iteration instead of once before the loop, causing redundant work and fragile logic
+- **Operator precedence bug on `cd` validation** — `line.starts_with("cd ") && line.contains("&&") || line.contains(";")` was incorrectly matching any line containing `;` due to missing parentheses. This check has been removed entirely in favor of graceful handling
+
+### Changed
+
+- Added warning message when `current_dir()` fails and xeq falls back to `"."`
+
+---
+
 ## [v1.5.0] - 2026-03-11
 
 ### Added

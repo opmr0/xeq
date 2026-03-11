@@ -1,0 +1,39 @@
+# Requires a .env file with:
+# DB_URL=postgres://user:pass@localhost:5432/mydb
+# DB_NAME=mydb
+
+[vars]
+migrations = "./migrations"
+
+[migrate-up]
+description = "Run all pending migrations"
+run = ["migrate -url {{$DB_URL}} -path {{@migrations}} up"]
+
+[migrate-down]
+description = "Roll back the last migration"
+run = ["migrate -url {{$DB_URL}} -path {{@migrations}} down 1"]
+
+[migrate-status]
+description = "Show migration status"
+run = ["migrate -url {{$DB_URL}} -path {{@migrations}} version"]
+
+[seed]
+description = "Seed the database"
+run = ["psql {{$DB_URL}} -f ./seeds/seed.sql"]
+
+[reset]
+description = "Drop, recreate and seed the database"
+run = [
+    "dropdb --if-exists {{$DB_NAME}}",
+    "createdb {{$DB_NAME}}",
+    "xeq://migrate-up",
+    "xeq://seed"
+]
+
+[dump]
+description = "Dump the database to a file"
+run = ["pg_dump {{$DB_URL}} > ./backups/dump_{{1}}.sql"]
+
+[restore]
+description = "Restore database from a dump file"
+run = ["psql {{$DB_URL}} < ./backups/{{1}}"]

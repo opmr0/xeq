@@ -1,0 +1,49 @@
+# Requires a .env file with:
+# AWS_REGION=us-east-1
+# AWS_ACCOUNT_ID=123456789
+# ECR_REPO=myapp
+# ECS_CLUSTER=myapp-cluster
+# ECS_SERVICE=myapp-service
+
+[vars]
+tag = "latest"
+
+[ecr-login]
+description = "Authenticate Docker with ECR"
+run = [
+    "aws ecr get-login-password --region {{$AWS_REGION}} | docker login --username AWS --password-stdin {{$AWS_ACCOUNT_ID}}.dkr.ecr.{{$AWS_REGION}}.amazonaws.com"
+]
+
+[build]
+description = "Build and tag image for ECR"
+run = [
+    "docker build -t {{$ECR_REPO}}:{{@tag}} .",
+    "docker tag {{$ECR_REPO}}:{{@tag}} {{$AWS_ACCOUNT_ID}}.dkr.ecr.{{$AWS_REGION}}.amazonaws.com/{{$ECR_REPO}}:{{@tag}}"
+]
+
+[push]
+description = "Push image to ECR"
+run = [
+    "xeq://ecr-login",
+    "xeq://build",
+    "docker push {{$AWS_ACCOUNT_ID}}.dkr.ecr.{{$AWS_REGION}}.amazonaws.com/{{$ECR_REPO}}:{{@tag}}"
+]
+
+[deploy]
+description = "Force new ECS deployment"
+run = [
+    "xeq://push",
+    "aws ecs update-service --cluster {{$ECS_CLUSTER}} --service {{$ECS_SERVICE}} --force-new-deployment --region {{$AWS_REGION}}"
+]
+
+[status]
+description = "Check ECS service status"
+run = [
+    "aws ecs describe-services --cluster {{$ECS_CLUSTER}} --services {{$ECS_SERVICE}} --region {{$AWS_REGION}}"
+]
+
+[logs]
+description = "Tail CloudWatch logs"
+run = [
+    "aws logs tail /ecs/{{$ECS_SERVICE}} --follow --region {{$AWS_REGION}}"
+]

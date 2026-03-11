@@ -61,6 +61,7 @@ fn validate_or_exit() {
 }
 
 fn main() {
+    dotenvy::dotenv().ok();
     let cli = Cli::parse();
 
     match cli.command {
@@ -122,7 +123,11 @@ fn main() {
                 allow_recursion,
             };
 
-            let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            let cwd = std::env::current_dir().unwrap_or_else(|_| {
+                err!("Warning: could not determine current directory, falling back to '.'");
+                PathBuf::from(".")
+            });
+
             run(script_name, &config, &mut visited, args, opts, &cwd);
         }
         Command::List { global } => {

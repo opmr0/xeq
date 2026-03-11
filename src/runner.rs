@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::env;
 use std::{collections::HashSet, path::PathBuf, process, thread};
 
 use crate::types::Config;
@@ -47,6 +48,34 @@ pub fn replace_vars(
             .ok_or_else(|| format!("undefined variable '{{{{@{}}}}}'", key))?;
 
         line.replace_range(start..end, value);
+        i = start + value.len();
+    }
+
+    Ok(line)
+}
+
+pub fn replace_env(line: &str) -> Result<String, String> {
+    let mut line = line.to_owned();
+
+    let mut i = 0;
+    while let Some(start) = line[i..].find("{{$") {
+        let start = i + start;
+        let end = match line[start..].find("}}") {
+            Some(e) => start + e + 2,
+            None => break,
+        };
+
+        let key = &line[start + 3..end - 2];
+
+        let value = match env::var(key) {
+            Ok(x) => x,
+            Err(e) => {
+                err!("Failed to find the environment var \n {}", e);
+                process::exit(1)
+            }
+        };
+
+        line.replace_range(start..end, &value);
         i = start + value.len();
     }
 
@@ -124,46 +153,6 @@ pub fn run(
         }
     }
 
-    if opts.parallel {
-        let has_cd = script.run.iter().any(|l| l.starts_with("cd "));
-        let has_nested = script.run.iter().any(|l| l.starts_with("xeq://"));
-
-        if has_cd || has_nested {
-            err!(
-                "Script '{}' contains {} — cannot run in parallel mode. \
-                Remove the parallel option or restructure the script.",
-                script_name,
-                match (has_cd, has_nested) {
-                    (true, true) => "'cd' and nested 'xeq://' calls",
-                    (true, false) => "'cd' commands",
-                    _ => "nested 'xeq://' calls",
-                }
-            );
-            process::exit(1);
-        }
-
-        log!(opts.quiet, "{}", "running in parallel".purple());
-
-        let cwd = cwd.clone();
-        let handles: Vec<_> = script
-            .run
-            .iter()
-            .map(|line| {
-                let line = line.clone();
-                let cwd = cwd.clone();
-                thread::spawn(move || spawn_command(&line, &cwd).wait().expect("Failed to wait"))
-            })
-            .collect();
-
-        for handle in handles {
-            handle.join().unwrap();
-        }
-        return;
-    }
-
-    let mut cwd = cwd.clone();
-    let total = script.run.len();
-
     let (named_args, positional_args) = parse_args(args.as_deref().unwrap_or(&[]));
     for (i, line) in script.run.iter().enumerate() {
         if opts.clear {
@@ -176,6 +165,69 @@ pub fn run(
                 process::exit(1);
             });
         let line = replace_args(&line, &positional_args);
+        let line = replace_env(&line).unwrap_or_else(|e| {
+            err!("{}", e);
+            process::exit(1);
+        });
+
+        let (named_args, positional_args) = parse_args(args.as_deref().unwrap_or(&[]));
+
+        if opts.parallel {
+            let has_cd = script.run.iter().any(|l| l.starts_with("cd "));
+            let has_nested = script.run.iter().any(|l| l.starts_with("xeq://"));
+
+            if has_cd || has_nested {
+                err!(
+                    "Script '{}' contains {} — cannot run in parallel mode. \
+            Remove the parallel option or restructure the script.",
+                    script_name,
+                    match (has_cd, has_nested) {
+                        (true, true) => "'cd' and nested 'xeq://' calls",
+                        (true, false) => "'cd' commands",
+                        _ => "nested 'xeq://' calls",
+                    }
+                );
+                process::exit(1);
+            }
+
+            log!(opts.quiet, "{}", "running in parallel".purple());
+
+            let resolved_lines: Vec<String> = script
+                .run
+                .iter()
+                .map(|line| {
+                    let line = replace_vars(line, &config.vars, &script.vars, &named_args)
+                        .unwrap_or_else(|e| {
+                            err!("{}", e);
+                            process::exit(1);
+                        });
+                    let line = replace_args(&line, &positional_args);
+                    replace_env(&line).unwrap_or_else(|e| {
+                        err!("{}", e);
+                        process::exit(1);
+                    })
+                })
+                .collect();
+
+            let cwd = cwd.clone();
+            let handles: Vec<_> = resolved_lines
+                .into_iter()
+                .map(|line| {
+                    let cwd = cwd.clone();
+                    thread::spawn(move || {
+                        spawn_command(&line, &cwd).wait().expect("Failed to wait")
+                    })
+                })
+                .collect();
+
+            for handle in handles {
+                handle.join().unwrap();
+            }
+            return;
+        }
+
+        let mut cwd = cwd.clone();
+        let total = script.run.len();
 
         log!(opts.quiet, "[{}/{}] {}", i + 1, total, line.yellow());
 
@@ -196,38 +248,123 @@ pub fn run(
             continue;
         }
 
-        if line.starts_with("cd ") && line.contains("&&") || line.contains(";") {
-            err!(
-        "Script '{}': use separate lines for 'cd' and subsequent commands — 'cd' with '&&' or ';' is not supported.",
-        script_name
-        );
-            process::exit(1);
-        }
-
         if let Some(arg) = line.strip_prefix("cd ") {
             let arg = arg.trim();
-            let new_path = if arg.is_empty() {
-                dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"))
+
+            let (dir, rest, separator) = if let Some((d, r)) = arg.split_once("&&") {
+                (d.trim(), Some(r.trim()), Some("&&"))
+            } else if let Some((d, r)) = arg.split_once("||") {
+                (d.trim(), Some(r.trim()), Some("||"))
+            } else if let Some((d, r)) = arg.split_once(';') {
+                (d.trim(), Some(r.trim()), Some(";"))
+            } else if let Some((d, r)) = arg.split_once('&') {
+                (d.trim(), Some(r.trim()), Some("&"))
             } else {
-                cwd.join(arg)
+                (arg, None, None)
             };
 
-            match new_path.canonicalize() {
+            let (dir, negate) = if dir.starts_with('!') {
+                (dir.trim_start_matches('!').trim(), true)
+            } else {
+                (dir, false)
+            };
+
+            let new_path = if dir.is_empty() {
+                dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"))
+            } else {
+                cwd.join(dir)
+            };
+
+            let cd_result = new_path.canonicalize();
+
+            let cd_succeeded = match &cd_result {
+                Ok(_) => !negate,
+                Err(_) => negate,
+            };
+
+            match cd_result {
                 Ok(resolved) => {
-                    log!(
-                        opts.quiet,
-                        "Changing directory to {}",
-                        resolved.display().to_string().yellow()
-                    );
-                    cwd = resolved;
+                    if !negate {
+                        log!(
+                            opts.quiet,
+                            "Changing directory to {}",
+                            resolved.display().to_string().yellow()
+                        );
+                        cwd = resolved;
+                    } else {
+                        err!("cd: negated condition met for '{}'", dir);
+                        if !opts.continue_on_err {
+                            process::exit(1);
+                        }
+                    }
                 }
                 Err(e) => {
-                    err!("cd: {}: {}", new_path.display(), e);
-                    if !opts.continue_on_err {
-                        process::exit(1);
+                    if !negate {
+                        err!("cd: {}: {}", new_path.display(), e);
                     }
                 }
             }
+
+            if let Some(rest) = rest {
+                if !rest.is_empty() {
+                    match separator {
+                        Some("&&") => {
+                            if cd_succeeded {
+                                let status =
+                                    spawn_command(rest, &cwd).wait().expect("Failed to wait");
+                                if !status.success() {
+                                    err!(
+                                        "Command failed with exit code {}.",
+                                        status.code().unwrap_or(-1)
+                                    );
+                                    if !opts.continue_on_err {
+                                        process::exit(status.code().unwrap_or(1));
+                                    }
+                                } else {
+                                    log!(opts.quiet, "{}", "Done".green());
+                                }
+                            }
+                        }
+                        Some("||") => {
+                            if !cd_succeeded {
+                                let status =
+                                    spawn_command(rest, &cwd).wait().expect("Failed to wait");
+                                if !status.success() {
+                                    err!(
+                                        "Command failed with exit code {}.",
+                                        status.code().unwrap_or(-1)
+                                    );
+                                    if !opts.continue_on_err {
+                                        process::exit(status.code().unwrap_or(1));
+                                    }
+                                } else {
+                                    log!(opts.quiet, "{}", "Done".green());
+                                }
+                            }
+                        }
+                        Some(";") => {
+                            let status = spawn_command(rest, &cwd).wait().expect("Failed to wait");
+                            if !status.success() {
+                                err!(
+                                    "Command failed with exit code {}.",
+                                    status.code().unwrap_or(-1)
+                                );
+                                if !opts.continue_on_err {
+                                    process::exit(status.code().unwrap_or(1));
+                                }
+                            } else {
+                                log!(opts.quiet, "{}", "Done".green());
+                            }
+                        }
+                        Some("&") => {
+                            spawn_command(rest, &cwd);
+                            log!(opts.quiet, "{}", "spawned in background".purple());
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
             continue;
         }
 
@@ -321,6 +458,156 @@ mod tests {
     }
 
     #[test]
+    fn cd_and_operator_runs_rest_on_success() {
+        let dir = TempDir::new().unwrap();
+        let cwd = dir.path().canonicalize().unwrap();
+        let new_dir = TempDir::new().unwrap();
+        let new_cwd = new_dir.path().canonicalize().unwrap();
+        let line = format!("cd {} && touch xeq_and_test.txt", new_cwd.display());
+        let arg = line.strip_prefix("cd ").unwrap().trim();
+        let (d, rest, sep) = if let Some((d, r)) = arg.split_once("&&") {
+            (d.trim(), Some(r.trim().to_string()), Some("&&"))
+        } else {
+            (arg, None, None)
+        };
+        let resolved = cwd.join(d).canonicalize();
+        assert!(resolved.is_ok());
+        assert_eq!(sep, Some("&&"));
+        assert!(rest.is_some());
+    }
+
+    #[test]
+    fn cd_and_operator_skips_rest_on_failure() {
+        let bad_path = PathBuf::from("/tmp/nonexistent_xeq_dir_xyz");
+        let result = bad_path.canonicalize();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn cd_or_operator_skips_rest_on_success() {
+        let dir = TempDir::new().unwrap();
+        let cwd = dir.path().canonicalize().unwrap();
+        let line = format!("cd {} || echo fallback", cwd.display());
+        let arg = line.strip_prefix("cd ").unwrap().trim();
+        let (_, _, sep) = if let Some((d, r)) = arg.split_once("||") {
+            (d.trim(), Some(r.trim().to_string()), Some("||"))
+        } else {
+            (arg, None, None)
+        };
+        let resolved = cwd.join(arg.split_once("||").unwrap().0.trim()).canonicalize();
+        assert!(resolved.is_ok());
+        assert_eq!(sep, Some("||"));
+    }
+
+    #[test]
+    fn cd_or_operator_runs_rest_on_failure() {
+        let bad = PathBuf::from("/tmp/nonexistent_xeq_dir_xyz");
+        let result = bad.canonicalize();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn cd_semicolon_operator_always_runs_rest() {
+        let dir = TempDir::new().unwrap();
+        let cwd = dir.path().canonicalize().unwrap();
+        let line = format!("cd {}; echo always", cwd.display());
+        let arg = line.strip_prefix("cd ").unwrap().trim();
+        let (_, rest, sep) = if let Some((d, r)) = arg.split_once(';') {
+            (d.trim(), Some(r.trim().to_string()), Some(";"))
+        } else {
+            (arg, None, None)
+        };
+        assert_eq!(sep, Some(";"));
+        assert!(rest.is_some());
+    }
+
+    #[test]
+    fn cd_background_operator_parses_correctly() {
+        let dir = TempDir::new().unwrap();
+        let cwd = dir.path().canonicalize().unwrap();
+        let line = format!("cd {} & echo bg", cwd.display());
+        let arg = line.strip_prefix("cd ").unwrap().trim();
+        let (_, rest, sep) = if let Some((d, r)) = arg.split_once('&') {
+            (d.trim(), Some(r.trim().to_string()), Some("&"))
+        } else {
+            (arg, None, None)
+        };
+        assert_eq!(sep, Some("&"));
+        assert!(rest.is_some());
+    }
+
+    #[test]
+    fn cd_negate_flips_success_to_failure() {
+        let dir = TempDir::new().unwrap();
+        let valid = dir.path().canonicalize().unwrap();
+        let result = valid.canonicalize();
+        let negate = true;
+        let cd_succeeded = match &result {
+            Ok(_) => !negate,
+            Err(_) => negate,
+        };
+        assert!(!cd_succeeded);
+    }
+
+    #[test]
+    fn cd_negate_flips_failure_to_success() {
+        let bad = PathBuf::from("/tmp/nonexistent_xeq_dir_xyz");
+        let result = bad.canonicalize();
+        let negate = true;
+        let cd_succeeded = match &result {
+            Ok(_) => !negate,
+            Err(_) => negate,
+        };
+        assert!(cd_succeeded);
+    }
+
+    #[test]
+    fn cd_no_operator_plain_path() {
+        let dir = TempDir::new().unwrap();
+        let cwd = dir.path().canonicalize().unwrap();
+        let line = format!("cd {}", cwd.display());
+        let arg = line.strip_prefix("cd ").unwrap().trim();
+        let has_operator = arg.contains("&&") || arg.contains("||") || arg.contains(';') || arg.contains('&');
+        assert!(!has_operator);
+    }
+
+    #[test]
+    fn cd_empty_arg_resolves_to_home() {
+        let home = dirs::home_dir();
+        assert!(home.is_some());
+    }
+
+    #[test]
+    fn parallel_resolves_vars_before_spawn() {
+        let mut global = HashMap::new();
+        global.insert("cmd".to_string(), "echo hello".to_string());
+        let result = replace_vars(
+            "{{@cmd}}",
+            &Some(global),
+            &None,
+            &HashMap::new(),
+        )
+        .unwrap();
+        assert_eq!(result, "echo hello");
+    }
+
+    #[test]
+    fn parallel_resolves_args_before_spawn() {
+        let line = "echo {{1}}";
+        let args = vec!["parallel_test".to_string()];
+        let result = replace_args(line, &args);
+        assert_eq!(result, "echo parallel_test");
+    }
+
+    #[test]
+    fn parallel_resolves_env_before_spawn() {
+        std::env::set_var("XEQ_TEST_VAR", "hello");
+        let result = replace_env("echo {{$XEQ_TEST_VAR}}").unwrap();
+        assert_eq!(result, "echo hello");
+        std::env::remove_var("XEQ_TEST_VAR");
+    }
+
+    #[test]
     fn spawn_command_uses_cwd() {
         let dir = TempDir::new().unwrap();
         let cwd = dir.path().canonicalize().unwrap();
@@ -328,13 +615,11 @@ mod tests {
         let (cmd, args) = ("cmd", vec!["/C", "echo . > xeq_test_marker.txt"]);
         #[cfg(not(target_os = "windows"))]
         let (cmd, args) = ("sh", vec!["-c", "touch xeq_test_marker.txt"]);
-
         std::process::Command::new(cmd)
             .args(&args)
             .current_dir(&cwd)
             .output()
             .unwrap();
-
         assert!(cwd.join("xeq_test_marker.txt").exists());
     }
 

@@ -1,0 +1,41 @@
+[vars]
+app = "my-app"
+
+[setup]
+description = "Scaffold a new React + Tailwind project"
+run = [
+    "npm create vite@latest {{@app}} -- --template react",
+    "cd {{@app}} && npm install",
+    "npm install -D tailwindcss postcss autoprefixer",
+    "npx tailwindcss init -p"
+]
+
+[dev]
+description = "Start the dev server"
+run = [
+    "cd {{@app}}",
+    "npm run dev"
+]
+
+[build]
+description = "Build for production"
+options = ["quiet"]
+run = [
+    "cd {{@app}}",
+    "npm run build"
+]
+
+[preview]
+description = "Preview the production build"
+run = [
+    "cd {{@app}}",
+    "npm run preview"
+]
+
+[clean]
+description = "Remove node_modules and build output"
+options = ["continue_on_err"]
+run = [
+    "cd {{@app}}",
+    "rm -rf node_modules dist"
+]

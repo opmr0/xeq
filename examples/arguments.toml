@@ -1,0 +1,48 @@
+[vars]
+registry = "docker.io/myorg"
+default_env = "staging"
+
+[create-component]
+description = "Scaffold a new React component: xeq run create-component --args MyButton"
+run = [
+    "mkdir -p src/components/{{1}}",
+    "touch src/components/{{1}}/{{1}}.tsx",
+    "touch src/components/{{1}}/{{1}}.test.tsx",
+    "touch src/components/{{1}}/index.ts",
+    "echo Created component {{1}}"
+]
+
+[create-page]
+description = "Scaffold a new page: xeq run create-page --args dashboard"
+run = [
+    "mkdir -p src/pages/{{1}}",
+    "touch src/pages/{{1}}/index.tsx",
+    "echo Created page {{1}}"
+]
+
+[docker-build]
+description = "Build and tag image: xeq run docker-build --args myapp v1.2.0"
+run = [
+    "docker build -t {{@registry}}/{{1}}:{{2}} .",
+    "echo Built {{@registry}}/{{1}}:{{2}}"
+]
+
+[deploy-env]
+description = "Deploy to a specific env: xeq run deploy-env --args env=production"
+run = [
+    "echo Deploying to {{1}} environment",
+    "npm run deploy -- --env {{1}}"
+]
+
+[git-feature]
+description = "Create a feature branch: xeq run git-feature --args my-feature"
+run = [
+    "git checkout -b feature/{{1}}",
+    "git push -u origin feature/{{1}}"
+]
+
+[migrate-create]
+description = "Create a new migration: xeq run migrate-create --args add_users_table"
+run = [
+    "migrate create -ext sql -dir ./migrations -seq {{1}}"
+]

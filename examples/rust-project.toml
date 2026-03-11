@@ -1,8 +1,5 @@
-# Rust project workflow
-# xeq run check, build, publish
-
 [check]
-description = "Format, lint and test in parallel"
+description = "Run all checks in parallel"
 options = ["parallel"]
 run = [
     "cargo fmt --check",
@@ -10,16 +7,41 @@ run = [
     "cargo test"
 ]
 
-[build]
-description = "Build release binary"
+[fix]
+description = "Auto-fix formatting and clippy warnings"
 run = [
     "cargo fmt",
+    "cargo clippy --fix --allow-dirty"
+]
+
+[build]
+description = "Release build"
+options = ["quiet"]
+run = [
+    "cargo fmt",
+    "cargo clippy -- -D warnings",
     "cargo build --release"
 ]
 
+[test]
+description = "Run tests with output"
+run = ["cargo test -- --nocapture"]
+
+[doc]
+description = "Build and open documentation"
+run = [
+    "cargo doc --no-deps",
+    "cargo doc --open"
+]
+
 [publish]
-description = "Check then publish to crates.io"
+description = "Full publish pipeline"
 run = [
     "xeq://check",
+    "xeq://build",
     "cargo publish"
 ]
+
+[clean]
+description = "Clean build artifacts"
+run = ["cargo clean"]

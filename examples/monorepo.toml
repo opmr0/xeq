@@ -1,0 +1,72 @@
+[vars]
+root = "."
+web = "packages/web"
+mobile = "packages/mobile"
+shared = "packages/shared"
+
+[install]
+description = "Install all packages"
+run = ["npm install --workspaces"]
+
+[build-shared]
+description = "Build shared package first"
+run = [
+    "cd {{@shared}}",
+    "npm run build"
+]
+
+[build-web]
+description = "Build web app"
+run = [
+    "xeq://build-shared",
+    "cd {{@web}}",
+    "npm run build"
+]
+
+[build-mobile]
+description = "Build mobile app"
+run = [
+    "xeq://build-shared",
+    "cd {{@mobile}}",
+    "npm run build"
+]
+
+[build-all]
+description = "Build everything"
+run = [
+    "xeq://build-shared",
+    "xeq://build-web",
+    "xeq://build-mobile"
+]
+
+[dev-web]
+description = "Start web dev server"
+run = [
+    "cd {{@web}}",
+    "npm run dev"
+]
+
+[dev-mobile]
+description = "Start mobile dev server"
+run = [
+    "cd {{@mobile}}",
+    "npm start"
+]
+
+[test-all]
+description = "Run all tests in parallel"
+options = ["parallel"]
+run = [
+    "npm run test --workspace={{@web}}",
+    "npm run test --workspace={{@mobile}}",
+    "npm run test --workspace={{@shared}}"
+]
+
+[lint-all]
+description = "Lint all packages in parallel"
+options = ["parallel"]
+run = [
+    "npm run lint --workspace={{@web}}",
+    "npm run lint --workspace={{@mobile}}",
+    "npm run lint --workspace={{@shared}}"
+]

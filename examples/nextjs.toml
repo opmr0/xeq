@@ -1,0 +1,54 @@
+[vars]
+app = "my-next-app"
+
+[setup]
+description = "Scaffold a new Next.js project"
+run = [
+    "npx create-next-app@latest {{@app}} --typescript --tailwind --eslint",
+    "cd {{@app}} && npm install"
+]
+
+[dev]
+description = "Start the dev server"
+run = [
+    "cd {{@app}}",
+    "npm run dev"
+]
+
+[build]
+description = "Build for production"
+options = ["quiet"]
+run = [
+    "cd {{@app}}",
+    "npm run build"
+]
+
+[start]
+description = "Start the production server"
+run = [
+    "xeq://build",
+    "cd {{@app}}",
+    "npm start"
+]
+
+[lint]
+description = "Run ESLint"
+run = [
+    "cd {{@app}}",
+    "npm run lint"
+]
+
+[check]
+description = "Lint and build"
+run = [
+    "xeq://lint",
+    "xeq://build"
+]
+
+[clean]
+description = "Remove build output and cache"
+options = ["continue_on_err"]
+run = [
+    "cd {{@app}}",
+    "rm -rf .next out node_modules"
+]

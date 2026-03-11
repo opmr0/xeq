@@ -1,0 +1,55 @@
+[vars]
+image = "myapp"
+tag = "latest"
+port = "8080"
+container = "myapp-container"
+
+[build]
+description = "Build the Docker image"
+run = ["docker build -t {{@image}}:{{@tag}} ."]
+
+[run]
+description = "Run the container"
+run = [
+    "docker run -d --name {{@container}} -p {{@port}}:{{@port}} {{@image}}:{{@tag}}"
+]
+
+[stop]
+description = "Stop the container"
+options = ["continue_on_err"]
+run = ["docker stop {{@container}}"]
+
+[restart]
+description = "Stop and start the container"
+run = [
+    "xeq://stop",
+    "xeq://run"
+]
+
+[logs]
+description = "Tail container logs"
+run = ["docker logs -f {{@container}}"]
+
+[push]
+description = "Build and push to registry"
+run = [
+    "xeq://build",
+    "docker push {{@image}}:{{@tag}}"
+]
+
+[clean]
+description = "Remove container and image"
+options = ["continue_on_err"]
+run = [
+    "docker stop {{@container}}",
+    "docker rm {{@container}}",
+    "docker rmi {{@image}}:{{@tag}}"
+]
+
+[compose-up]
+description = "Start all services"
+run = ["docker compose up -d"]
+
+[compose-down]
+description = "Stop all services"
+run = ["docker compose down"]

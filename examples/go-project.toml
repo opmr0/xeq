@@ -1,0 +1,51 @@
+[vars]
+bin = "myapp"
+main = "./cmd/{{@bin}}"
+
+[setup]
+description = "Download dependencies"
+run = ["go mod download"]
+
+[check]
+description = "Run all checks in parallel"
+options = ["parallel"]
+run = [
+    "go vet ./...",
+    "staticcheck ./...",
+    "go test ./..."
+]
+
+[build]
+description = "Build binary"
+run = ["go build -o bin/{{@bin}} {{@main}}"]
+
+[build-linux]
+description = "Cross-compile for Linux"
+run = ["GOOS=linux GOARCH=amd64 go build -o bin/{{@bin}}-linux {{@main}}"]
+
+[run]
+description = "Build and run"
+run = [
+    "xeq://build",
+    "bin/{{@bin}}"
+]
+
+[test]
+description = "Run tests with coverage"
+run = ["go test ./... -coverprofile=coverage.out && go tool cover -html=coverage.out"]
+
+[lint]
+description = "Run golangci-lint"
+run = ["golangci-lint run ./..."]
+
+[release]
+description = "Full release pipeline"
+run = [
+    "xeq://check",
+    "xeq://build",
+    "xeq://build-linux"
+]
+
+[clean]
+description = "Remove build artifacts"
+run = ["rm -rf bin/ coverage.out"]

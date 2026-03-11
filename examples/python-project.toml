@@ -1,0 +1,55 @@
+[vars]
+venv = ".venv"
+app = "src"
+
+[setup]
+description = "Create virtualenv and install dependencies"
+run = [
+    "python3 -m venv {{@venv}}",
+    "{{@venv}}/bin/pip install --upgrade pip",
+    "{{@venv}}/bin/pip install -r requirements.txt"
+]
+
+[dev]
+description = "Install dev dependencies"
+run = [
+    "xeq://setup",
+    "{{@venv}}/bin/pip install -r requirements-dev.txt"
+]
+
+[check]
+description = "Run linter and type checker in parallel"
+options = ["parallel"]
+run = [
+    "{{@venv}}/bin/ruff check {{@app}}",
+    "{{@venv}}/bin/mypy {{@app}}"
+]
+
+[test]
+description = "Run tests with coverage"
+run = [
+    "{{@venv}}/bin/pytest --cov={{@app}} --cov-report=term-missing"
+]
+
+[build]
+description = "Build distribution packages"
+run = [
+    "{{@venv}}/bin/python -m build"
+]
+
+[publish]
+description = "Publish to PyPI"
+run = [
+    "xeq://check",
+    "xeq://test",
+    "xeq://build",
+    "{{@venv}}/bin/twine upload dist/*"
+]
+
+[clean]
+description = "Remove build artifacts and cache"
+options = ["continue_on_err"]
+run = [
+    "rm -rf dist build *.egg-info",
+    "find . -type d -name __pycache__ -exec rm -rf {} +"
+]

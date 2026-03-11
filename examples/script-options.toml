@@ -1,0 +1,51 @@
+[lint]
+description = "Lint — quiet by default, toggle with --quiet to see output"
+options = ["quiet"]
+run = [
+    "eslint src/",
+    "stylelint src/**/*.css"
+]
+
+[test]
+description = "Tests run in parallel by default"
+options = ["parallel"]
+run = [
+    "jest --testPathPattern=unit",
+    "jest --testPathPattern=integration",
+    "jest --testPathPattern=e2e"
+]
+
+[build]
+description = "Build — quiet and continues on non-fatal errors"
+options = ["quiet", "continue_on_err"]
+run = [
+    "tsc --noEmit",
+    "npm run build"
+]
+
+[watch]
+description = "Watch mode — clears screen between runs"
+options = ["clear"]
+run = [
+    "npm run watch"
+]
+
+[ci]
+description = "CI mode — sequential, strict, no toggles"
+run = [
+    "xeq://lint",
+    "xeq://test",
+    "xeq://build"
+]
+
+# Usage examples:
+#
+# xeq run lint              → quiet ON  (from options)
+# xeq run lint --quiet      → quiet OFF (toggled off by flag)
+#
+# xeq run test              → parallel ON  (from options)
+# xeq run test --parallel   → parallel OFF (toggled off by flag)
+#
+# xeq run build             → quiet ON, continue_on_err ON
+# xeq run build --quiet     → quiet OFF, continue_on_err ON
+# xeq run build -q -C       → quiet OFF, continue_on_err OFF
