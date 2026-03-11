@@ -194,6 +194,8 @@ build --- Format, lint and release
     cargo build --release
 ```
 
+use `-g` / `--global` to list global tasks
+
 ---
 
 ## TOML File Format
@@ -402,15 +404,6 @@ xeq run check -p  # same using the CLI flag
 ## Example Files
 
 The [`examples/`](./examples) folder has ready-to-use TOML files for common workflows:
-
-| File                   | What it does                                           |
-| ---------------------- | ------------------------------------------------------ |
-| `react-tailwind.toml`  | Scaffold a React + Tailwind CSS project                |
-| `nextjs.toml`          | Set up a Next.js project with TypeScript               |
-| `rust-project.toml`    | Format, lint, test, and release a Rust project         |
-| `docker-app.toml`      | Start, stop, rebuild, and tail logs for Docker Compose |
-| `git-workflow.toml`    | Sync, push, and stash/pop git operations               |
-| `scripts-nesting.toml` | Example of calling scripts from within scripts         |
 
 ---
 
