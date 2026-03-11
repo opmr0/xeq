@@ -1,8 +1,29 @@
-[sync]
-run = ["git fetch origin", "git pull origin main"]
+# Git workflow
+# xeq run sync, save, fresh
+# example: xeq run save --args "fix: resolve login bug"
 
-[push]
-run = ["git add .", "git commit -m 'update'", "git push origin main"]
+[vars]
+branch = "main"
+
+[sync]
+description = "Pull latest changes"
+run = [
+    "git fetch origin",
+    "git pull origin {{@branch}}"
+]
+
+[save]
+description = "Stage, commit and push — pass commit message as arg"
+run = [
+    "git add .",
+    "git commit -m '{{1}}'",
+    "git push"
+]
 
 [fresh]
-run = ["git stash", "git pull origin main", "git stash pop"]
+description = "Stash changes, pull, then restore"
+run = [
+    "git stash",
+    "git pull origin {{@branch}}",
+    "git stash pop"
+]

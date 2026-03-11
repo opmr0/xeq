@@ -1,8 +1,25 @@
-[new]
-run = ["cargo new my-app", "cd my-app", "git init"]
+# Rust project workflow
+# xeq run check, build, publish
 
 [check]
-run = ["cargo fmt", "cargo clippy", "cargo test"]
+description = "Format, lint and test in parallel"
+options = ["parallel"]
+run = [
+    "cargo fmt --check",
+    "cargo clippy -- -D warnings",
+    "cargo test"
+]
 
-[release]
-run = ["cargo build --release"]
+[build]
+description = "Build release binary"
+run = [
+    "cargo fmt",
+    "cargo build --release"
+]
+
+[publish]
+description = "Check then publish to crates.io"
+run = [
+    "xeq://check",
+    "cargo publish"
+]

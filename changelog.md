@@ -4,6 +4,25 @@ All notable changes to xeq will be documented here.
 
 ---
 
+## [v1.5.0] - 2026-03-11
+
+### Added
+
+- **Variables system** — define reusable values in a `[vars]` block and reference them in commands with `{{@varname}}`
+- **Local variables** — scripts can define their own vars with `vars.key = "value"` to override global ones for that script only
+- **Named arguments** — `--args` now accepts `key=value` pairs in addition to positional values, allowing named overrides of variables at runtime
+- **Variable resolution order** — `--args` (runtime) -> local vars (per script) -> global vars (file-level). Most specific value always wins.
+
+### Changed
+
+- `--args` now supports both positional (`{{1}}`) and named (`{{@varname}}`) placeholders in a single call
+- Improved error message when a `{{@varname}}` placeholder has no value defined at any level
+
+### Fixed
+- fix some bugs with the `cd` command handling
+---
+
+
 ## [v1.4.0] - 2026-03-11
 
 ### Added

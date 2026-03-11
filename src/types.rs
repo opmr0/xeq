@@ -1,6 +1,13 @@
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::PathBuf};
 
+#[derive(Deserialize, Debug)]
+pub struct Config {
+    pub vars: Option<HashMap<String, String>>,
+    #[serde(flatten)]
+    pub scripts: Scripts,
+}
+
 #[derive(Serialize, Deserialize, Default)]
 pub struct SavedPath {
     pub path: PathBuf,
@@ -21,6 +28,7 @@ pub struct Script {
     pub description: Option<String>,
     pub options: Option<Vec<ScriptOption>>,
     pub run: Vec<String>,
+    pub vars: Option<HashMap<String, String>>,
 }
 
 pub type Scripts = HashMap<String, Script>;
@@ -45,8 +53,9 @@ run = []
     #[test]
     fn script_struct_serializes_correctly() {
         let script = Script {
-            description:None,
+            description: None,
             options: None,
+            vars: None,
             run: vec!["echo hi".to_string(), "echo bye".to_string()],
         };
         let toml_str = toml::to_string(&script).unwrap();

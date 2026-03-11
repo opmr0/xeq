@@ -1,0 +1,31 @@
+# Node.js project workflow
+# xeq run setup, dev, test, clean
+
+[vars]
+port = "3000"
+
+[setup]
+description = "Install dependencies and build"
+run = [
+    "npm install",
+    "npm run build"
+]
+
+[dev]
+description = "Start the dev server"
+run = ["npm run dev"]
+
+[test]
+description = "Run tests and type check simultaneously"
+options = ["parallel"]
+run = [
+    "npm run test",
+    "npm run typecheck"
+]
+
+[clean]
+description = "Remove build artifacts"
+run = [
+    "rm -rf dist",
+    "rm -rf node_modules"
+]

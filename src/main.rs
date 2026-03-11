@@ -39,7 +39,7 @@ enum Command {
         allow_recursion: bool,
         #[arg(long, short)]
         global: bool,
-        #[arg(short, long, num_args = 1..)]
+        #[arg(short, long, num_args = 1.. ,value_name = "VALUES")]
         args: Option<Vec<String>>,
     },
     List {
@@ -102,9 +102,11 @@ fn main() {
             allow_recursion,
             global,
         } => {
-            validate_or_exit();
+            if global {
+                validate_or_exit()
+            };
             let mut visited = HashSet::new();
-            let scripts = match read_scripts(global) {
+            let config = match read_scripts(global) {
                 Ok(x) => x,
                 Err(e) => {
                     err!("{}", e);
@@ -120,12 +122,13 @@ fn main() {
                 allow_recursion,
             };
 
-            run(script_name, &scripts, &mut visited, args, opts);
+            let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            run(script_name, &config, &mut visited, args, opts, &cwd);
         }
         Command::List { global } => {
             validate_or_exit();
-            log!(false, "Listing tasks... \n");
-            let content = read_scripts(global).unwrap();
+            log!(false, "Listing scripts... \n");
+            let content = read_scripts(global).unwrap().scripts;
             for s in content {
                 println!(
                     "{} --- {} \n runs:",
@@ -155,7 +158,7 @@ run = [
 
             match std::fs::write(path, content) {
                 Ok(_) => log!(false, "created xeq.toml"),
-                Err(e) => err!("failed to create xeq.toml: {}", e)
+                Err(e) => err!("failed to create xeq.toml: {}", e),
             }
         }
     }

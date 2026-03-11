@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::types::{SavedPath, Scripts};
+use crate::types::{Config, SavedPath};
 
 pub fn validate_path(path: &PathBuf) -> Result<PathBuf, io::Error> {
     if !path.exists() {
@@ -46,7 +46,7 @@ pub fn load_path() -> Option<PathBuf> {
     Some(config.path)
 }
 
-pub fn read_scripts(global: bool) -> Result<Scripts, std::io::Error> {
+pub fn read_scripts(global: bool) -> Result<Config, std::io::Error> {
     let file_path = PathBuf::from("./xeq.toml");
 
     let path = if global {
@@ -68,7 +68,7 @@ pub fn read_scripts(global: bool) -> Result<Scripts, std::io::Error> {
     };
 
     let content = fs::read_to_string(path)?;
-    toml::from_str::<Scripts>(&content).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+    toml::from_str::<Config>(&content).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
 }
 
 #[cfg(test)]
