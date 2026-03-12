@@ -7,7 +7,7 @@ license = "MIT"
 repository = "https://github.com/opmr0/xeq"
 readme = "README.md"
 keywords = ["task-runner", "automation", "cli", "build-tool", "toml"]
-categories = ["command-line-utilities"]
+categories = ["command-line-utilities", "development-tools", "config"]
 
 
 [dependencies]
