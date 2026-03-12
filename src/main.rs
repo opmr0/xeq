@@ -131,8 +131,12 @@ fn main() {
             run(script_name, &config, &mut visited, args, opts, &cwd);
         }
         Command::List { global } => {
-            validate_or_exit();
-            log!(false, "scripts in {}:", if global { "global config" } else { "xeq.toml" });
+            if global {validate_or_exit()};
+            log!(
+                false,
+                "scripts in {}:",
+                if global { "global config" } else { "xeq.toml" }
+            );
             let content = match read_scripts(global) {
                 Ok(x) => x.scripts,
                 Err(e) => {
