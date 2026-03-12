@@ -132,8 +132,14 @@ fn main() {
         }
         Command::List { global } => {
             validate_or_exit();
-            log!(false, "Listing scripts... \n");
-            let content = read_scripts(global).unwrap().scripts;
+            log!(false, "scripts in {}:", if global { "global config" } else { "xeq.toml" });
+            let content = match read_scripts(global) {
+                Ok(x) => x.scripts,
+                Err(e) => {
+                    err!("{}", e);
+                    process::exit(1);
+                }
+            };
             for s in content {
                 println!(
                     "{} --- {} \n runs:",
@@ -162,8 +168,8 @@ run = [
 "#;
 
             match std::fs::write(path, content) {
-                Ok(_) => log!(false, "created xeq.toml"),
-                Err(e) => err!("failed to create xeq.toml: {}", e),
+                Ok(_) => log!(false, "created xeq.toml — run 'xeq run setup' to try it"),
+                Err(e) => err!("could not create xeq.toml: {}", e),
             }
         }
     }

@@ -69,8 +69,8 @@ pub fn replace_env(line: &str) -> Result<String, String> {
 
         let value = match env::var(key) {
             Ok(x) => x,
-            Err(e) => {
-                err!("Failed to find the environment var \n {}", e);
+            Err(_) => {
+                err!("environment variable '{{{{${}}}}}' is not set", key);
                 process::exit(1)
             }
         };
@@ -103,14 +103,14 @@ pub fn spawn_command(line: &str, cwd: &PathBuf) -> std::process::Child {
         .args(["/C", line])
         .current_dir(cwd)
         .spawn()
-        .expect("failed to spawn");
+        .expect("failed to spawn process - is 'cmd.exe' available?");
 
     #[cfg(not(target_os = "windows"))]
     return std::process::Command::new("sh")
         .args(["-c", line])
         .current_dir(cwd)
         .spawn()
-        .expect("failed to spawn");
+        .expect("failed to spawn process - is 'sh' available?");
 }
 
 pub fn run(
@@ -126,7 +126,10 @@ pub fn run(
     let script = match scripts.get(&script_name) {
         Some(x) => x,
         None => {
-            err!("Script '{}' not found.", script_name);
+            err!(
+                "script '{}' not found — run 'xeq list' to see available scripts",
+                script_name
+            );
             if !opts.continue_on_err {
                 process::exit(1);
             } else {
@@ -170,8 +173,6 @@ pub fn run(
             process::exit(1);
         });
 
-        let (named_args, positional_args) = parse_args(args.as_deref().unwrap_or(&[]));
-
         if opts.parallel {
             let has_cd = script.run.iter().any(|l| l.starts_with("cd "));
             let has_nested = script.run.iter().any(|l| l.starts_with("xeq://"));
@@ -190,7 +191,7 @@ pub fn run(
                 process::exit(1);
             }
 
-            log!(opts.quiet, "{}", "running in parallel".purple());
+            log!(opts.quiet, "{}", "running commands in parallel".purple());
 
             let resolved_lines: Vec<String> = script
                 .run
@@ -215,7 +216,9 @@ pub fn run(
                 .map(|line| {
                     let cwd = cwd.clone();
                     thread::spawn(move || {
-                        spawn_command(&line, &cwd).wait().expect("Failed to wait")
+                        spawn_command(&line, &cwd)
+                            .wait()
+                            .expect("failed to wait for child process")
                     })
                 })
                 .collect();
@@ -234,15 +237,15 @@ pub fn run(
         if let Some(name) = line.strip_prefix("xeq://") {
             let name = name.to_owned();
             if visited.contains(&name) && !opts.allow_recursion {
-                err!("Circular dependency detected: '{}'", script_name);
+                err!(
+                    "circular dependency detected: '{}' calls '{}' which is already running",
+                    script_name,
+                    name
+                );
                 process::exit(1);
             }
             visited.insert(name.clone());
-            log!(
-                opts.quiet,
-                "Calling script \'{}\'----------------",
-                name.purple()
-            );
+            log!(opts.quiet, "running nested script '{}'", name.purple());
             run(name.clone(), config, visited, args.clone(), opts, &cwd);
             visited.remove(&name);
             continue;
@@ -292,7 +295,10 @@ pub fn run(
                         );
                         cwd = resolved;
                     } else {
-                        err!("cd: negated condition met for '{}'", dir);
+                        err!(
+                            "cd '{}': directory exists but negation (!) requires it not to",
+                            dir
+                        );
                         if !opts.continue_on_err {
                             process::exit(1);
                         }
@@ -300,7 +306,7 @@ pub fn run(
                 }
                 Err(e) => {
                     if !negate {
-                        err!("cd: {}: {}", new_path.display(), e);
+                        err!("cd '{}': {}", new_path.display(), e);
                     }
                 }
             }
@@ -310,55 +316,67 @@ pub fn run(
                     match separator {
                         Some("&&") => {
                             if cd_succeeded {
-                                let status =
-                                    spawn_command(rest, &cwd).wait().expect("Failed to wait");
+                                let status = spawn_command(rest, &cwd)
+                                    .wait()
+                                    .expect("failed to wait for child process");
                                 if !status.success() {
                                     err!(
-                                        "Command failed with exit code {}.",
+                                        "'{}' exited with code {}",
+                                        rest,
                                         status.code().unwrap_or(-1)
                                     );
                                     if !opts.continue_on_err {
                                         process::exit(status.code().unwrap_or(1));
                                     }
                                 } else {
-                                    log!(opts.quiet, "{}", "Done".green());
+                                    log!(opts.quiet, "{}", "done".green());
                                 }
                             }
                         }
                         Some("||") => {
                             if !cd_succeeded {
-                                let status =
-                                    spawn_command(rest, &cwd).wait().expect("Failed to wait");
+                                let status = spawn_command(rest, &cwd)
+                                    .wait()
+                                    .expect("failed to wait for child process");
                                 if !status.success() {
                                     err!(
-                                        "Command failed with exit code {}.",
+                                        "'{}' exited with code {}",
+                                        rest,
                                         status.code().unwrap_or(-1)
                                     );
                                     if !opts.continue_on_err {
                                         process::exit(status.code().unwrap_or(1));
                                     }
                                 } else {
-                                    log!(opts.quiet, "{}", "Done".green());
+                                    log!(opts.quiet, "{}", "done".green());
                                 }
                             }
                         }
                         Some(";") => {
-                            let status = spawn_command(rest, &cwd).wait().expect("Failed to wait");
+                            let status = spawn_command(rest, &cwd)
+                                .wait()
+                                .expect("failed to wait for child process");
                             if !status.success() {
                                 err!(
-                                    "Command failed with exit code {}.",
+                                    "'{}' exited with code {}",
+                                    rest,
                                     status.code().unwrap_or(-1)
                                 );
                                 if !opts.continue_on_err {
                                     process::exit(status.code().unwrap_or(1));
                                 }
                             } else {
-                                log!(opts.quiet, "{}", "Done".green());
+                                log!(opts.quiet, "{}", "done".green());
                             }
                         }
                         Some("&") => {
-                            spawn_command(rest, &cwd);
-                            log!(opts.quiet, "{}", "spawned in background".purple());
+                            let _ = spawn_command(rest, &cwd);
+                            log!(
+                                opts.quiet,
+                                "'{}' {}",
+                                rest,
+                                "spawned in background".purple()
+                            );
                         }
                         _ => {}
                     }
@@ -368,27 +386,29 @@ pub fn run(
             continue;
         }
 
-        let status = spawn_command(&line, &cwd).wait().expect("Failed to wait");
+        let status = spawn_command(&line, &cwd)
+            .wait()
+            .expect("failed to wait for child process");
 
         if !status.success() {
             err!(
-                "Command failed with exit code {}.",
+                "'{}' exited with code {}",
+                line,
                 status.code().unwrap_or(-1)
             );
             if !opts.continue_on_err {
                 process::exit(status.code().unwrap_or(1));
             }
         } else {
-            log!(opts.quiet, "{}", "Done".green());
+            log!(opts.quiet, "{}", "done".green());
         }
     }
 
     log!(
         opts.quiet,
-        "{} \'{}\' {}----------------",
-        "script",
+        "script '{}' {}",
         script_name,
-        "commands are completed".green().bold()
+        "completed".green().bold()
     );
 }
 
@@ -494,7 +514,9 @@ mod tests {
         } else {
             (arg, None, None)
         };
-        let resolved = cwd.join(arg.split_once("||").unwrap().0.trim()).canonicalize();
+        let resolved = cwd
+            .join(arg.split_once("||").unwrap().0.trim())
+            .canonicalize();
         assert!(resolved.is_ok());
         assert_eq!(sep, Some("||"));
     }
@@ -567,7 +589,8 @@ mod tests {
         let cwd = dir.path().canonicalize().unwrap();
         let line = format!("cd {}", cwd.display());
         let arg = line.strip_prefix("cd ").unwrap().trim();
-        let has_operator = arg.contains("&&") || arg.contains("||") || arg.contains(';') || arg.contains('&');
+        let has_operator =
+            arg.contains("&&") || arg.contains("||") || arg.contains(';') || arg.contains('&');
         assert!(!has_operator);
     }
 
@@ -581,13 +604,7 @@ mod tests {
     fn parallel_resolves_vars_before_spawn() {
         let mut global = HashMap::new();
         global.insert("cmd".to_string(), "echo hello".to_string());
-        let result = replace_vars(
-            "{{@cmd}}",
-            &Some(global),
-            &None,
-            &HashMap::new(),
-        )
-        .unwrap();
+        let result = replace_vars("{{@cmd}}", &Some(global), &None, &HashMap::new()).unwrap();
         assert_eq!(result, "echo hello");
     }
 

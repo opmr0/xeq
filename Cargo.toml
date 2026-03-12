@@ -1,13 +1,14 @@
 [package]
 name = "xeq"
-version = "1.6.0"
+version = "1.6.1"
 edition = "2021"
 description = "Run sequences of commands from a TOML file with a single word"
 license = "MIT"
 repository = "https://github.com/opmr0/xeq"
 readme = "README.md"
-keywords = ["cli", "commands", "runner", "automation", "scripts"]
+keywords = ["task-runner", "automation", "cli", "build-tool", "toml"]
 categories = ["command-line-utilities"]
+
 
 [dependencies]
 clap = { version = "4.5.60", features = ["derive"] }
