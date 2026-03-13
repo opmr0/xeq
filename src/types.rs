@@ -21,6 +21,7 @@ pub enum ScriptOption {
     Parallel,
     ContinueOnErr,
     AllowRecursion,
+    Summary,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

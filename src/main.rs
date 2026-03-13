@@ -44,6 +44,8 @@ enum Command {
         global: bool,
         #[arg(long)]
         no_env: bool,
+        #[arg(long, short)]
+        summary: bool,
         #[arg(short, long, num_args = 1.. ,value_name = "VALUES")]
         args: Option<Vec<String>>,
     },
@@ -111,6 +113,7 @@ fn main() {
             allow_recursion,
             no_env,
             global,
+            summary,
         } => {
             if global {
                 validate_or_exit()
@@ -134,6 +137,7 @@ fn main() {
                 clear,
                 parallel,
                 allow_recursion,
+                summary,
             };
 
             let cwd = std::env::current_dir().unwrap_or_else(|_| {

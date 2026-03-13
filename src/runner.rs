@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::env;
 use std::{collections::HashSet, path::PathBuf, process, thread};
 
+use colored::Colorize;
+
 use crate::types::Config;
 use crate::types::ScriptOption::*;
 
@@ -12,6 +14,13 @@ pub struct RunOptions {
     pub quiet: bool,
     pub parallel: bool,
     pub allow_recursion: bool,
+    pub summary: bool,
+}
+
+struct CommandSummary {
+    command: String,
+    duration: f64,
+    succeeded: bool,
 }
 
 pub fn replace_args(line: &str, args: &[String]) -> String {
@@ -137,6 +146,7 @@ pub fn run(
             }
         }
     };
+    let mut summary: Vec<CommandSummary> = Vec::new();
 
     if let Some(script_options) = &script.options {
         if script_options.contains(&ContinueOnErr) {
@@ -153,6 +163,9 @@ pub fn run(
         }
         if script_options.contains(&AllowRecursion) {
             opts.allow_recursion = !opts.allow_recursion
+        }
+        if script_options.contains(&Summary) {
+            opts.summary = !opts.summary
         }
     }
 
@@ -397,9 +410,11 @@ pub fn run(
             continue;
         }
 
+        let start = std::time::Instant::now();
         let status = spawn_command(&line, &cwd)
             .wait()
             .expect("failed to wait for child process");
+        let duration = start.elapsed().as_secs_f64();
 
         if !status.success() {
             err!(
@@ -411,7 +426,14 @@ pub fn run(
                 process::exit(status.code().unwrap_or(1));
             }
         } else {
-            log!(opts.quiet, "{}", "done".green());
+            log!(opts.quiet, "{} in {:.2}s", "done".green(), duration);
+        }
+        if opts.summary {
+            summary.push(CommandSummary {
+                command: line,
+                duration,
+                succeeded: status.success(),
+            });
         }
     }
 
@@ -421,6 +443,31 @@ pub fn run(
         script_name,
         "completed".green().bold()
     );
+    if opts.summary {
+        println!("\n {:<30} {}   {}", "command", "time", "status");
+        println!("{}", "-".repeat(50));
+        for CommandSummary {
+            command,
+            duration,
+            succeeded,
+        } in &summary
+        {
+            println!(
+                "{:<30} {:.2}s {}",
+                if command.len() > 26 {
+                    format!("{}...", &command[..26])
+                } else {
+                    command.clone()
+                },
+                duration,
+                if *succeeded {
+                    "succeeded".green()
+                } else {
+                    "failed".red()
+                }
+            );
+        }
+    }
 }
 
 #[cfg(test)]

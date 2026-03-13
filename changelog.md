@@ -2,6 +2,11 @@
 
 All notable changes to xeq will be documented here.
 
+## v1.8.0
+
+- Commands now show execution time after completing
+- Added `--summary` flag to `xeq run` - prints a table of all commands and their execution times after the script finishes
+
 ---
 
 ## v1.7.0
