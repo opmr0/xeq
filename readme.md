@@ -67,7 +67,6 @@ xeq gives you a better option:
 | Flag toggle mechanic   | ✅                    | ❌                  | ❌                 |
 | `.env` loading         | ✅                    | ✅                  | ❌                 |
 | Multi-language recipes | ❌                    | ✅                  | ❌                 |
-| Learning curve         | None (TOML)           | Low (new syntax)    | High               |
 
 ---
 
@@ -172,6 +171,7 @@ xeq run deploy --args env=prod
 | `--allow-recursion`  |       | Let a script call itself                                    |
 | `--args <values...>` | `-a`  | Pass arguments into the script — positional or `key=value`  |
 | `--global`           | `-g`  | Use the globally saved path instead of the local `xeq.toml` |
+| `--no-env`           |       | Skip loading the .env file                                  |
 
 ---
 
@@ -186,6 +186,23 @@ xeq list --global
 
 ---
 
+### `xeq validate`
+
+Checks all scripts in your TOML file for errors without running anything.
+```bash
+xeq validate
+xeq validate --global
+```
+
+Catches:
+- Nested `xeq://` calls pointing to scripts that don't exist
+- `parallel` option combined with `cd` or `xeq://`
+- Undefined `{{@vars}}` not defined in vars (warns, doesn't fail)
+- Circular dependencies between scripts
+- `dir` paths that don't exist
+
+---
+
 ## TOML Format
 
 A `xeq.toml` file contains named scripts. Each script needs at least a `run` array:
@@ -193,6 +210,7 @@ A `xeq.toml` file contains named scripts. Each script needs at least a `run` arr
 ```toml
 [my-script]
 description = "What this script does"
+dir = "./my_app"
 options = ["quiet"]
 run = [
     "command one",
@@ -416,22 +434,22 @@ run = [
 
 ## The [`examples/`](./examples) folder has ready-to-use TOML files for common workflows.
 
-| File | Description | Key Features Used |
-|---|---|---|
-| `react-tailwind.toml` | Scaffold and run a React + Tailwind project | variables, cd operators |
-| `nextjs.toml` | Next.js project setup and pipeline | nested scripts, variables |
-| `rust-project.toml` | Rust checks, build and publish | parallel, nested scripts |
-| `docker.toml` | Docker image and container management | variables, nested scripts |
-| `git-workflow.toml` | Common git operations | variables, arguments |
-| `nested-scripts.toml` | CI pipeline from reusable pieces | nested scripts |
-| `env-vars.toml` | Deploy and notify using env vars | `{{$VAR}}`, nested scripts |
-| `python-project.toml` | Virtualenv, checks and PyPI publish | parallel, nested scripts, variables |
-| `database.toml` | Migrations, seed, dump and restore | env vars, arguments, nested scripts |
-| `monorepo.toml` | Multi-package frontend workspace | parallel, variables, nested scripts |
-| `aws-deploy.toml` | ECR push and ECS deploy pipeline | env vars, nested scripts |
-| `go-project.toml` | Go build, test and cross-compile | parallel, nested scripts, variables |
-| `arguments.toml` | Positional and named arg patterns | arguments, variables |
-| `script-options.toml` | Flag toggle mechanic demonstrations | options, parallel, quiet, continue_on_err |
+| File                  | Description                                 | Key Features Used                         |
+| --------------------- | ------------------------------------------- | ----------------------------------------- |
+| `react-tailwind.toml` | Scaffold and run a React + Tailwind project | variables, cd operators                   |
+| `nextjs.toml`         | Next.js project setup and pipeline          | nested scripts, variables                 |
+| `rust-project.toml`   | Rust checks, build and publish              | parallel, nested scripts                  |
+| `docker.toml`         | Docker image and container management       | variables, nested scripts                 |
+| `git-workflow.toml`   | Common git operations                       | variables, arguments                      |
+| `nested-scripts.toml` | CI pipeline from reusable pieces            | nested scripts                            |
+| `env-vars.toml`       | Deploy and notify using env vars            | `{{$VAR}}`, nested scripts                |
+| `python-project.toml` | Virtualenv, checks and PyPI publish         | parallel, nested scripts, variables       |
+| `database.toml`       | Migrations, seed, dump and restore          | env vars, arguments, nested scripts       |
+| `monorepo.toml`       | Multi-package frontend workspace            | parallel, variables, nested scripts       |
+| `aws-deploy.toml`     | ECR push and ECS deploy pipeline            | env vars, nested scripts                  |
+| `go-project.toml`     | Go build, test and cross-compile            | parallel, nested scripts, variables       |
+| `arguments.toml`      | Positional and named arg patterns           | arguments, variables                      |
+| `script-options.toml` | Flag toggle mechanic demonstrations         | options, parallel, quiet, continue_on_err |
 
 ---
 

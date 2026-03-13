@@ -9,9 +9,12 @@ mod macros;
 mod config;
 mod runner;
 mod types;
+mod validation;
 
 use config::*;
 use runner::*;
+
+use crate::validation::validate;
 
 #[derive(Parser, Debug)]
 #[clap(version, about, name = "xeq")]
@@ -39,6 +42,8 @@ enum Command {
         allow_recursion: bool,
         #[arg(long, short)]
         global: bool,
+        #[arg(long)]
+        no_env: bool,
         #[arg(short, long, num_args = 1.. ,value_name = "VALUES")]
         args: Option<Vec<String>>,
     },
@@ -47,6 +52,10 @@ enum Command {
         global: bool,
     },
     Init,
+    Validate {
+        #[arg(long, short)]
+        global: bool,
+    },
 }
 
 fn validate_or_exit() {
@@ -61,7 +70,6 @@ fn validate_or_exit() {
 }
 
 fn main() {
-    dotenvy::dotenv().ok();
     let cli = Cli::parse();
 
     match cli.command {
@@ -101,6 +109,7 @@ fn main() {
             args,
             parallel,
             allow_recursion,
+            no_env,
             global,
         } => {
             if global {
@@ -115,6 +124,10 @@ fn main() {
                 }
             };
 
+            if !no_env {
+                dotenvy::dotenv().ok();
+            }
+
             let opts = RunOptions {
                 continue_on_err,
                 quiet,
@@ -128,10 +141,12 @@ fn main() {
                 PathBuf::from(".")
             });
 
-            run(script_name, &config, &mut visited, args, opts, &cwd);
+            run(script_name, &config, &mut visited, args, opts, cwd);
         }
         Command::List { global } => {
-            if global {validate_or_exit()};
+            if global {
+                validate_or_exit()
+            };
             log!(
                 false,
                 "scripts in {}:",
@@ -146,15 +161,17 @@ fn main() {
             };
             for s in content {
                 println!(
-                    "{} --- {} \n runs:",
+                    "{} --- {} \ndir: {} \nruns:",
                     s.0.cyan().bold(),
                     s.1.description
                         .unwrap_or("No description provided".to_owned())
-                        .italic()
+                        .italic(),
+                    s.1.dir.unwrap_or("None".to_owned()),
                 );
                 for c in s.1.run.iter() {
                     println!("\t{}", c.yellow())
                 }
+                println!("")
             }
         }
         Command::Init => {
@@ -175,6 +192,27 @@ run = [
                 Ok(_) => log!(false, "created xeq.toml — run 'xeq run setup' to try it"),
                 Err(e) => err!("could not create xeq.toml: {}", e),
             }
+        }
+        Command::Validate { global } => {
+            log!(
+                false,
+                "validating scripts in {}:",
+                if global { "global config" } else { "xeq.toml" }
+            );
+            log!(false, "checking parse errors");
+            let config = match read_scripts(global) {
+                Ok(x) => x,
+                Err(e) => {
+                    err!("{}", e);
+                    process::exit(1)
+                }
+            };
+            log!(false, "{} \n", "parsing passed".green());
+            if validate(&config) {
+                err!("some scripts failed")
+            } else {
+                log!(false, "{}", "all scripts passed".green())
+            };
         }
     }
 }

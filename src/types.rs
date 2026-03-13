@@ -27,6 +27,7 @@ pub enum ScriptOption {
 pub struct Script {
     pub description: Option<String>,
     pub options: Option<Vec<ScriptOption>>,
+    pub dir: Option<String>,
     pub run: Vec<String>,
     pub vars: Option<HashMap<String, String>>,
 }
@@ -53,6 +54,7 @@ run = []
     #[test]
     fn script_struct_serializes_correctly() {
         let script = Script {
+            dir: None,
             description: None,
             options: None,
             vars: None,

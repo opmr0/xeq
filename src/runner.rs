@@ -119,7 +119,7 @@ pub fn run(
     visited: &mut HashSet<String>,
     args: Option<Vec<String>>,
     mut opts: RunOptions,
-    cwd: &PathBuf,
+    mut cwd: PathBuf,
 ) {
     let scripts = &config.scripts;
 
@@ -153,6 +153,17 @@ pub fn run(
         }
         if script_options.contains(&AllowRecursion) {
             opts.allow_recursion = !opts.allow_recursion
+        }
+    }
+
+    if let Some(dir) = &script.dir {
+        let new_path = cwd.join(dir);
+        match new_path.canonicalize() {
+            Ok(resolved) => cwd = resolved,
+            Err(e) => {
+                err!("dir '{}': {}", dir, e);
+                process::exit(1);
+            }
         }
     }
 
@@ -246,7 +257,7 @@ pub fn run(
             }
             visited.insert(name.clone());
             log!(opts.quiet, "running nested script '{}'", name.purple());
-            run(name.clone(), config, visited, args.clone(), opts, &cwd);
+            run(name.clone(), config, visited, args.clone(), opts, cwd);
             visited.remove(&name);
             continue;
         }

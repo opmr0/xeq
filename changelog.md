@@ -4,7 +4,17 @@ All notable changes to xeq will be documented here.
 
 ---
 
+## v1.7.0
+
+### Added 
+- `--no-env` flag to `xeq run` — skips `.env` file loading for that run
+- `dir` field to scripts — sets the working directory without needing a `cd` command
+- `xeq validate` command — checks all scripts for errors without running them
+
+---
+
 ## v1.6.0
+
 
 ### Added
 
