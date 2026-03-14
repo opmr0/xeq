@@ -11,8 +11,8 @@ mod runner;
 mod types;
 mod validation;
 
-use config::*;
-use runner::*;
+use config::{load_path, read_scripts, save_path, validate_path};
+use runner::{run, RunOptions};
 
 use crate::validation::validate;
 
@@ -145,7 +145,13 @@ fn main() {
                 PathBuf::from(".")
             });
 
-            run(script_name, &config, &mut visited, args, opts, cwd);
+            match run(script_name, &config, &mut visited, args, opts, cwd) {
+                Ok(_) => {}
+                Err(e) => {
+                    err!("{}", e);
+                    process::exit(1);
+                }
+            };
         }
         Command::List { global } => {
             if global {
@@ -175,7 +181,7 @@ fn main() {
                 for c in s.1.run.iter() {
                     println!("\t{}", c.yellow())
                 }
-                println!("")
+                println!()
             }
         }
         Command::Init => {
@@ -193,7 +199,7 @@ run = [
 "#;
 
             match std::fs::write(path, content) {
-                Ok(_) => log!(false, "created xeq.toml — run 'xeq run setup' to try it"),
+                Ok(_) => log!(false, "created xeq.toml, run 'xeq run setup' to try it"),
                 Err(e) => err!("could not create xeq.toml: {}", e),
             }
         }

@@ -129,20 +129,20 @@ pub fn run(
     args: Option<Vec<String>>,
     mut opts: RunOptions,
     mut cwd: PathBuf,
-) {
+) -> Result<(), String> {
     let scripts = &config.scripts;
 
     let script = match scripts.get(&script_name) {
         Some(x) => x,
         None => {
             err!(
-                "script '{}' not found — run 'xeq list' to see available scripts",
+                "script '{}' not found , run 'xeq list' to see available scripts",
                 script_name
             );
             if !opts.continue_on_err {
                 process::exit(1);
             } else {
-                return;
+                return Ok(());
             }
         }
     };
@@ -174,8 +174,7 @@ pub fn run(
         match new_path.canonicalize() {
             Ok(resolved) => cwd = resolved,
             Err(e) => {
-                err!("dir '{}': {}", dir, e);
-                process::exit(1);
+                return Err(format!("dir '{}': {}", dir, e));
             }
         }
     }
@@ -186,24 +185,17 @@ pub fn run(
             clearscreen::clear().unwrap();
         }
 
-        let line =
-            replace_vars(line, &config.vars, &script.vars, &named_args).unwrap_or_else(|e| {
-                err!("{}", e);
-                process::exit(1);
-            });
+        let line = replace_vars(line, &config.vars, &script.vars, &named_args)?;
         let line = replace_args(&line, &positional_args);
-        let line = replace_env(&line).unwrap_or_else(|e| {
-            err!("{}", e);
-            process::exit(1);
-        });
+        let line = replace_env(&line)?;
 
         if opts.parallel {
             let has_cd = script.run.iter().any(|l| l.starts_with("cd "));
             let has_nested = script.run.iter().any(|l| l.starts_with("xeq://"));
 
             if has_cd || has_nested {
-                err!(
-                    "Script '{}' contains {} — cannot run in parallel mode. \
+                return Err(format!(
+                    "Script '{}' contains {} , cannot run in parallel mode. \
             Remove the parallel option or restructure the script.",
                     script_name,
                     match (has_cd, has_nested) {
@@ -211,10 +203,11 @@ pub fn run(
                         (true, false) => "'cd' commands",
                         _ => "nested 'xeq://' calls",
                     }
-                );
-                process::exit(1);
+                ));
             }
+        }
 
+        if opts.parallel {
             log!(opts.quiet, "{}", "running commands in parallel".purple());
 
             let resolved_lines: Vec<String> = script
@@ -250,7 +243,7 @@ pub fn run(
             for handle in handles {
                 handle.join().unwrap();
             }
-            return;
+            process::exit(0)
         }
 
         let mut cwd = cwd.clone();
@@ -270,7 +263,7 @@ pub fn run(
             }
             visited.insert(name.clone());
             log!(opts.quiet, "running nested script '{}'", name.purple());
-            run(name.clone(), config, visited, args.clone(), opts, cwd);
+            run(name.clone(), config, visited, args.clone(), opts, cwd)?;
             visited.remove(&name);
             continue;
         }
@@ -394,6 +387,7 @@ pub fn run(
                             }
                         }
                         Some("&") => {
+                            #[allow(clippy::zombie_processes)]
                             let _ = spawn_command(rest, &cwd);
                             log!(
                                 opts.quiet,
@@ -444,7 +438,7 @@ pub fn run(
         "completed".green().bold()
     );
     if opts.summary {
-        println!("\n {:<30} {}   {}", "command", "time", "status");
+        println!("\n {:<30} time   status", "command");
         println!("{}", "-".repeat(50));
         for CommandSummary {
             command,
@@ -468,6 +462,7 @@ pub fn run(
             );
         }
     }
+    Ok(())
 }
 
 #[cfg(test)]

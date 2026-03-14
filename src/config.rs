@@ -32,7 +32,7 @@ pub fn is_toml(path: &Path) -> bool {
 pub fn save_path(path: PathBuf) -> Result<(), io::Error> {
     validate_path(&path)?;
     let config = SavedPath {
-        path: path.canonicalize().unwrap(),
+        path: path.canonicalize().map_err(io::Error::other)?,
     };
     confy::store("xeq", "path", &config)
         .map_err(|e| io::Error::other(format!("Failed to store config: {}", e)))

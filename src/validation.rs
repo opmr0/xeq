@@ -13,7 +13,7 @@ fn check_recursion(
         if let Some(target) = cmd.strip_prefix("xeq://") {
             if visited.contains(&target.to_string()) {
                 err!(
-                    "'{}': circular dependency detected — '{}' is already in the call chain: {}",
+                    "'{}': circular dependency detected, '{}' is already in the call chain: {}",
                     name,
                     target,
                     visited.join(" -> ")
@@ -40,7 +40,13 @@ pub fn validate(config: &Config) -> bool {
         log!(false, "validating '{}'", name);
 
         let mut visited = vec![name.clone()];
-        check_recursion(name, scripts, &mut visited, &mut has_errs, &mut false);
+        check_recursion(
+            name,
+            scripts,
+            &mut visited,
+            &mut has_errs,
+            &mut script_has_errs,
+        );
 
         if let Some(opts) = &script.options {
             if opts.contains(&ScriptOption::Parallel) {
@@ -91,7 +97,7 @@ pub fn validate(config: &Config) -> bool {
                     let in_global = config.vars.as_ref().is_some_and(|v| v.contains_key(key));
                     let in_local = script.vars.as_ref().is_some_and(|v| v.contains_key(key));
                     if !in_global && !in_local {
-                        println!("{} '{}': '{{{{@{}}}}}' is not defined in vars — must be passed at runtime with --args",
+                        println!("{} '{}': '{{{{@{}}}}}' is not defined in vars, must be passed at runtime with --args",
                             "[xeq]".yellow().bold(), name, key);
                     }
                     i = start + end + 2;
@@ -110,7 +116,7 @@ pub fn validate(config: &Config) -> bool {
                 "passed".green()
             );
         }
-        println!("")
+        println!()
     }
 
     has_errs

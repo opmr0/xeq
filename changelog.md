@@ -2,6 +2,22 @@
 
 All notable changes to xeq will be documented here.
 
+---
+
+## v2.0.0 - 2026-03-14
+
+### Changed
+- runner now returns Result instead of calling process::exit directly
+- parallel validation check moved outside the command loop
+- explicit imports replacing glob imports in main.rs
+
+### Fixed
+- recursion errors in validation no longer incorrectly show "passed"
+- background processes correctly marked as intentional
+- canonicalize error in save_path now propagates instead of panicking
+
+---
+
 ## v1.8.0
 
 - Commands now show execution time after completing
