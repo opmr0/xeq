@@ -10,7 +10,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4  # v3 -> v4, consistent with release.yml
+      - uses: actions/checkout@v6  # v3 -> v4, consistent with release.yml
 
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
