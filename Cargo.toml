@@ -12,7 +12,7 @@ categories = ["command-line-utilities", "development-tools", "config"]
 
 [dependencies]
 clap = { version = "4.5.60", features = ["derive"] }
-clearscreen = "4.0.5"
+clearscreen = "4.0.6"
 colored = "3.1.1"
 confy = "0.6.1"
 dirs = "6.0.0"
