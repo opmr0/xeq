@@ -4,6 +4,12 @@ All notable changes to xeq will be documented here.
 
 ---
 
+## v2.0.1 - 2026-03-20
+
+### Changed
+- update dependencies  
+
+---
 ## v2.0.0 - 2026-03-14
 
 ### Changed
