@@ -28,7 +28,7 @@ pub enum ScriptOption {
 pub struct Script {
     pub description: Option<String>,
     pub options: Option<Vec<ScriptOption>>,
-    pub parallel_threads : Option<usize>,
+    pub parallel_threads: Option<usize>,
     pub fallback: Option<String>,
     pub dir: Option<String>,
     pub run: Vec<String>,
