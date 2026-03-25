@@ -1,8 +1,8 @@
 [package]
 name = "xeq"
-version = "2.0.1"
+version = "3.0.0"
 edition = "2021"
-description = "Run sequences of commands from a TOML file with a single word"
+description = "xeq is a cross-platform CLI tool that runs sequences of commands from a single TOML file, making repetitive tasks fast and consistent."
 license = "MIT"
 repository = "https://github.com/opmr0/xeq"
 readme = "README.md"
@@ -18,8 +18,10 @@ confy = "0.6.1"
 dirs = "6.0.0"
 dotenvy = "0.15.7"
 dunce = "1.0.5"
+num_cpus = "1.17.0"
 open = "5.3.3"
 serde = { version = "1.0.228", features = ["derive"] }
+threadpool = "1.8.1"
 toml = "1.0.6"
 
 [dev-dependencies]

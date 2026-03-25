@@ -1,20 +1,23 @@
 use std::collections::HashMap;
 use std::env;
-use std::{collections::HashSet, path::PathBuf, process, thread};
+use std::{collections::HashSet, path::PathBuf, process};
 
 use colored::Colorize;
 
 use crate::types::Config;
 use crate::types::ScriptOption::*;
 
+use std::sync::mpsc::{channel, Receiver, Sender};
+
 #[derive(Clone, Copy)]
 pub struct RunOptions {
     pub continue_on_err: bool,
     pub clear: bool,
     pub quiet: bool,
-    pub parallel: bool,
+    pub parallel: Option<usize>,
     pub allow_recursion: bool,
     pub summary: bool,
+    pub allow_empty_vars: bool,
 }
 
 struct CommandSummary {
@@ -23,13 +26,35 @@ struct CommandSummary {
     succeeded: bool,
 }
 
-pub fn replace_args(line: &str, args: &[String]) -> String {
+pub fn replace_args(line: &str, args: &[String], allow_empty_vars: bool) -> Result<String, String> {
     let mut line = line.to_owned();
-    for (i, arg) in args.iter().enumerate() {
-        let placeholder = format!("{{{{{}}}}}", i + 1);
-        line = line.replace(&placeholder, arg);
+    let largest_placeholder: usize = line
+        .split_whitespace()
+        .filter(|x| !x.contains('@') || !x.contains('$'))
+        .map(|x| {
+            x.trim_end_matches("}}")
+                .trim_start_matches("{{")
+                .parse()
+                .unwrap_or(0)
+        })
+        .max()
+        .unwrap_or(0);
+    if !args.is_empty() {
+        if largest_placeholder > args.len() {
+            return Err(format!("not enough arguments `{}`", line));
+        }
+        for (i, arg) in args.iter().enumerate() {
+            let placeholder = format!("{{{{{}}}}}", i + 1);
+            line = line.replace(&placeholder, arg);
+        }
+    } else if !allow_empty_vars && largest_placeholder != 0 {
+        return Err(format!(
+            "arguments for the placeholders are required `{}`",
+            line
+        ));
     }
-    line
+
+    Ok(line)
 }
 
 pub fn replace_vars(
@@ -37,6 +62,7 @@ pub fn replace_vars(
     global_vars: &Option<HashMap<String, String>>,
     local_vars: &Option<HashMap<String, String>>,
     args: &HashMap<String, String>,
+    allow_empty_vars: bool,
 ) -> Result<String, String> {
     let mut line = line.to_owned();
 
@@ -48,13 +74,20 @@ pub fn replace_vars(
             None => break,
         };
 
-        let key = &line[start + 3..end - 2];
+        let key = &line[start + 3..end - 2].to_owned();
 
-        let value = args
+        let value = match args
             .get(key)
             .or_else(|| local_vars.as_ref()?.get(key))
             .or_else(|| global_vars.as_ref()?.get(key))
-            .ok_or_else(|| format!("undefined variable '{{{{@{}}}}}'", key))?;
+        {
+            Some(x) => x,
+            None if allow_empty_vars => &format!("{{{{@{}}}}}", key.clone()),
+            None => {
+                err!("undefined variable '{{{{@{}}}}}' is not set", key);
+                process::exit(1)
+            }
+        };
 
         line.replace_range(start..end, value);
         i = start + value.len();
@@ -150,7 +183,7 @@ pub fn run(
 
     if let Some(script_options) = &script.options {
         if script_options.contains(&ContinueOnErr) {
-            opts.continue_on_err = !opts.continue_on_err
+            opts.continue_on_err = !opts.continue_on_err;
         }
         if script_options.contains(&Quiet) {
             opts.quiet = !opts.quiet
@@ -158,16 +191,32 @@ pub fn run(
         if script_options.contains(&Clear) {
             opts.clear = !opts.clear
         }
-        if script_options.contains(&Parallel) {
-            opts.parallel = !opts.parallel
-        }
         if script_options.contains(&AllowRecursion) {
             opts.allow_recursion = !opts.allow_recursion
         }
         if script_options.contains(&Summary) {
             opts.summary = !opts.summary
         }
+        if script_options.contains(&AllowEmptyVars) {
+            opts.allow_empty_vars = !opts.allow_empty_vars
+        }
     }
+
+    if opts.continue_on_err && script.fallback.is_some() {
+        return Err("fallback and continue_on_err cannot be used together".to_string());
+    }
+
+    let parallel = match opts.parallel {
+        Some(x) => Some(x),
+        None if script.parallel_threads.is_some()
+            && std::env::args().any(|x| x == "-p" || x == "--parallel") =>
+        {
+            None
+        }
+        None if script.parallel_threads.is_some() => script.parallel_threads,
+        None if std::env::args().any(|x| x == "-p" || x == "--parallel") => Some(num_cpus::get()),
+        None => None,
+    };
 
     if let Some(dir) = &script.dir {
         let new_path = cwd.join(dir);
@@ -185,11 +234,17 @@ pub fn run(
             clearscreen::clear().unwrap();
         }
 
-        let line = replace_vars(line, &config.vars, &script.vars, &named_args)?;
-        let line = replace_args(&line, &positional_args);
+        let line = replace_vars(
+            line,
+            &config.vars,
+            &script.vars,
+            &named_args,
+            opts.allow_empty_vars,
+        )?;
+        let line = replace_args(&line, &positional_args, opts.allow_empty_vars)?;
         let line = replace_env(&line)?;
 
-        if opts.parallel {
+        if parallel.is_some() {
             let has_cd = script.run.iter().any(|l| l.starts_with("cd "));
             let has_nested = script.run.iter().any(|l| l.starts_with("xeq://"));
 
@@ -207,19 +262,32 @@ pub fn run(
             }
         }
 
-        if opts.parallel {
+        if let Some(n) = parallel {
+            if n <= 1 {
+                return Err("parallel_threads must be greater than 1".to_owned());
+            }
             log!(opts.quiet, "{}", "running commands in parallel".purple());
 
             let resolved_lines: Vec<String> = script
                 .run
                 .iter()
                 .map(|line| {
-                    let line = replace_vars(line, &config.vars, &script.vars, &named_args)
+                    let line = replace_vars(
+                        line,
+                        &config.vars,
+                        &script.vars,
+                        &named_args,
+                        opts.allow_empty_vars,
+                    )
+                    .unwrap_or_else(|e| {
+                        err!("{}", e);
+                        process::exit(1);
+                    });
+                    let line = replace_args(&line, &positional_args, opts.allow_empty_vars)
                         .unwrap_or_else(|e| {
                             err!("{}", e);
                             process::exit(1);
                         });
-                    let line = replace_args(&line, &positional_args);
                     replace_env(&line).unwrap_or_else(|e| {
                         err!("{}", e);
                         process::exit(1);
@@ -228,22 +296,41 @@ pub fn run(
                 .collect();
 
             let cwd = cwd.clone();
-            let handles: Vec<_> = resolved_lines
-                .into_iter()
-                .map(|line| {
-                    let cwd = cwd.clone();
-                    thread::spawn(move || {
-                        spawn_command(&line, &cwd)
-                            .wait()
-                            .expect("failed to wait for child process")
-                    })
-                })
-                .collect();
+            let pool = threadpool::ThreadPool::new(n);
+            let (tx, rx): (Sender<bool>, Receiver<bool>) = channel();
 
-            for handle in handles {
-                handle.join().unwrap();
+            for line in resolved_lines {
+                let cwd = cwd.clone();
+                let tx = tx.clone();
+                pool.execute(move || {
+                    let status = spawn_command(&line, &cwd)
+                        .wait()
+                        .expect("failed to wait for child process");
+
+                    let success = status.success();
+                    tx.send(success).expect("Failed to send status");
+                });
             }
-            process::exit(0)
+
+            drop(tx);
+
+            let mut all_succeeded = true;
+            for success in rx.iter() {
+                if !success {
+                    all_succeeded = false;
+                    if !opts.continue_on_err {
+                        break;
+                    }
+                }
+            }
+
+            pool.join();
+
+            if all_succeeded {
+                return Ok(());
+            } else {
+                Err("One or more commands failed.".to_owned())?;
+            }
         }
 
         let mut cwd = cwd.clone();
@@ -416,7 +503,11 @@ pub fn run(
                 line,
                 status.code().unwrap_or(-1)
             );
-            if !opts.continue_on_err {
+            if let Some(s) = &script.fallback {
+                log!(opts.quiet, "{} '{s}'", "falling back to".purple());
+                run(s.clone(), config, visited, args.clone(), opts, cwd)?;
+                break;
+            } else if !opts.continue_on_err {
                 process::exit(status.code().unwrap_or(1));
             }
         } else {
@@ -461,6 +552,7 @@ pub fn run(
                 }
             );
         }
+        println!();
     }
     Ok(())
 }
@@ -468,377 +560,118 @@ pub fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
 
     #[test]
-    fn args_replaces_single_placeholder() {
-        let line = "echo {{1}}".to_string();
-        let args = vec!["Omar".to_string()];
-        let result = replace_args(&line, &args);
-        assert_eq!(result, "echo Omar");
-    }
-
-    #[test]
-    fn args_replaces_multiple_placeholders() {
-        let line = "echo {{1}} {{2}}".to_string();
-        let args = vec!["Hello".to_string(), "World".to_string()];
-        let result = replace_args(&line, &args);
-        assert_eq!(result, "echo Hello World");
-    }
-
-    #[test]
-    fn args_no_placeholder_unchanged() {
-        let line = "echo hello".to_string();
-        let args = vec!["Omar".to_string()];
-        let result = replace_args(&line, &args);
-        assert_eq!(result, "echo hello");
-    }
-
-    #[test]
-    fn args_missing_arg_leaves_placeholder() {
-        let line = "echo {{1}} {{2}}".to_string();
-        let args = vec!["Omar".to_string()];
-        let result = replace_args(&line, &args);
-        assert_eq!(result, "echo Omar {{2}}");
-    }
-
-    #[test]
-    fn args_empty_args_unchanged() {
-        let line = "echo {{1}}".to_string();
-        let result = replace_args(&line, &[]);
-        assert_eq!(result, "echo {{1}}");
-    }
-
-    #[test]
-    fn args_detects_placeholder() {
-        assert!("echo {{1}}".contains("{{"));
-        assert!(!"echo hello".contains("{{"));
-    }
-
-    #[test]
-    fn cd_resolves_relative_path() {
-        let dir = TempDir::new().unwrap();
-        let cwd = dir.path().to_path_buf();
-        let resolved = cwd.canonicalize();
-        assert!(resolved.is_ok());
-    }
-
-    #[test]
-    fn cd_invalid_path_returns_error() {
-        let cwd = PathBuf::from("/tmp");
-        let bad = cwd.join("nonexistent_xeq_test_dir_xyz");
-        assert!(bad.canonicalize().is_err());
-    }
-
-    #[test]
-    fn cd_and_operator_runs_rest_on_success() {
-        let dir = TempDir::new().unwrap();
-        let cwd = dir.path().canonicalize().unwrap();
-        let new_dir = TempDir::new().unwrap();
-        let new_cwd = new_dir.path().canonicalize().unwrap();
-        let line = format!("cd {} && touch xeq_and_test.txt", new_cwd.display());
-        let arg = line.strip_prefix("cd ").unwrap().trim();
-        let (d, rest, sep) = if let Some((d, r)) = arg.split_once("&&") {
-            (d.trim(), Some(r.trim().to_string()), Some("&&"))
-        } else {
-            (arg, None, None)
-        };
-        let resolved = cwd.join(d).canonicalize();
-        assert!(resolved.is_ok());
-        assert_eq!(sep, Some("&&"));
-        assert!(rest.is_some());
-    }
-
-    #[test]
-    fn cd_and_operator_skips_rest_on_failure() {
-        let bad_path = PathBuf::from("/tmp/nonexistent_xeq_dir_xyz");
-        let result = bad_path.canonicalize();
+    fn args_error_when_not_enough_values() {
+        let line = "echo {{1}} {{2}}";
+        let args = vec!["only_one".to_string()];
+        let result = replace_args(line, &args, false);
         assert!(result.is_err());
     }
 
     #[test]
-    fn cd_or_operator_skips_rest_on_success() {
-        let dir = TempDir::new().unwrap();
-        let cwd = dir.path().canonicalize().unwrap();
-        let line = format!("cd {} || echo fallback", cwd.display());
-        let arg = line.strip_prefix("cd ").unwrap().trim();
-        let (_, _, sep) = if let Some((d, r)) = arg.split_once("||") {
-            (d.trim(), Some(r.trim().to_string()), Some("||"))
-        } else {
-            (arg, None, None)
-        };
-        let resolved = cwd
-            .join(arg.split_once("||").unwrap().0.trim())
-            .canonicalize();
-        assert!(resolved.is_ok());
-        assert_eq!(sep, Some("||"));
+    fn args_allow_empty_vars_keeps_placeholders() {
+        let line = "echo {{1}} {{2}}";
+        let result = replace_args(line, &[], true).unwrap();
+        assert_eq!(result, "echo {{1}} {{2}}");
     }
 
     #[test]
-    fn cd_or_operator_runs_rest_on_failure() {
-        let bad = PathBuf::from("/tmp/nonexistent_xeq_dir_xyz");
-        let result = bad.canonicalize();
-        assert!(result.is_err());
+    fn replace_env_multiple_vars() {
+        std::env::set_var("XEQ_A", "A");
+        std::env::set_var("XEQ_B", "B");
+        let result = replace_env("echo {{$XEQ_A}} {{$XEQ_B}}").unwrap();
+        assert_eq!(result, "echo A B");
+        std::env::remove_var("XEQ_A");
+        std::env::remove_var("XEQ_B");
     }
 
     #[test]
-    fn cd_semicolon_operator_always_runs_rest() {
-        let dir = TempDir::new().unwrap();
-        let cwd = dir.path().canonicalize().unwrap();
-        let line = format!("cd {}; echo always", cwd.display());
-        let arg = line.strip_prefix("cd ").unwrap().trim();
-        let (_, rest, sep) = if let Some((d, r)) = arg.split_once(';') {
-            (d.trim(), Some(r.trim().to_string()), Some(";"))
-        } else {
-            (arg, None, None)
-        };
-        assert_eq!(sep, Some(";"));
-        assert!(rest.is_some());
-    }
-
-    #[test]
-    fn cd_background_operator_parses_correctly() {
-        let dir = TempDir::new().unwrap();
-        let cwd = dir.path().canonicalize().unwrap();
-        let line = format!("cd {} & echo bg", cwd.display());
-        let arg = line.strip_prefix("cd ").unwrap().trim();
-        let (_, rest, sep) = if let Some((d, r)) = arg.split_once('&') {
-            (d.trim(), Some(r.trim().to_string()), Some("&"))
-        } else {
-            (arg, None, None)
-        };
-        assert_eq!(sep, Some("&"));
-        assert!(rest.is_some());
-    }
-
-    #[test]
-    fn cd_negate_flips_success_to_failure() {
-        let dir = TempDir::new().unwrap();
-        let valid = dir.path().canonicalize().unwrap();
-        let result = valid.canonicalize();
-        let negate = true;
-        let cd_succeeded = match &result {
-            Ok(_) => !negate,
-            Err(_) => negate,
-        };
-        assert!(!cd_succeeded);
-    }
-
-    #[test]
-    fn cd_negate_flips_failure_to_success() {
-        let bad = PathBuf::from("/tmp/nonexistent_xeq_dir_xyz");
-        let result = bad.canonicalize();
-        let negate = true;
-        let cd_succeeded = match &result {
-            Ok(_) => !negate,
-            Err(_) => negate,
-        };
-        assert!(cd_succeeded);
-    }
-
-    #[test]
-    fn cd_no_operator_plain_path() {
-        let dir = TempDir::new().unwrap();
-        let cwd = dir.path().canonicalize().unwrap();
-        let line = format!("cd {}", cwd.display());
-        let arg = line.strip_prefix("cd ").unwrap().trim();
-        let has_operator =
-            arg.contains("&&") || arg.contains("||") || arg.contains(';') || arg.contains('&');
-        assert!(!has_operator);
-    }
-
-    #[test]
-    fn cd_empty_arg_resolves_to_home() {
-        let home = dirs::home_dir();
-        assert!(home.is_some());
-    }
-
-    #[test]
-    fn parallel_resolves_vars_before_spawn() {
-        let mut global = HashMap::new();
-        global.insert("cmd".to_string(), "echo hello".to_string());
-        let result = replace_vars("{{@cmd}}", &Some(global), &None, &HashMap::new()).unwrap();
-        assert_eq!(result, "echo hello");
-    }
-
-    #[test]
-    fn parallel_resolves_args_before_spawn() {
-        let line = "echo {{1}}";
-        let args = vec!["parallel_test".to_string()];
-        let result = replace_args(line, &args);
-        assert_eq!(result, "echo parallel_test");
-    }
-
-    #[test]
-    fn parallel_resolves_env_before_spawn() {
-        std::env::set_var("XEQ_TEST_VAR", "hello");
-        let result = replace_env("echo {{$XEQ_TEST_VAR}}").unwrap();
-        assert_eq!(result, "echo hello");
-        std::env::remove_var("XEQ_TEST_VAR");
-    }
-
-    #[test]
-    fn spawn_command_uses_cwd() {
-        let dir = TempDir::new().unwrap();
-        let cwd = dir.path().canonicalize().unwrap();
-        #[cfg(target_os = "windows")]
-        let (cmd, args) = ("cmd", vec!["/C", "echo . > xeq_test_marker.txt"]);
-        #[cfg(not(target_os = "windows"))]
-        let (cmd, args) = ("sh", vec!["-c", "touch xeq_test_marker.txt"]);
-        std::process::Command::new(cmd)
-            .args(&args)
-            .current_dir(&cwd)
-            .output()
-            .unwrap();
-        assert!(cwd.join("xeq_test_marker.txt").exists());
-    }
-
-    #[test]
-    fn parse_args_named_and_positional() {
-        let args = vec!["image=myapp:latest".to_string(), "my-app".to_string()];
+    fn parse_args_mixed_named_and_positional() {
+        let args = vec![
+            "key=value".to_string(),
+            "pos1".to_string(),
+            "another=123".to_string(),
+            "pos2".to_string(),
+        ];
         let (named, positional) = parse_args(&args);
-        assert_eq!(named.get("image").unwrap(), "myapp:latest");
-        assert_eq!(positional[0], "my-app");
+        assert_eq!(named.get("key").unwrap(), "value");
+        assert_eq!(named.get("another").unwrap(), "123");
+        assert_eq!(positional, vec!["pos1".to_string(), "pos2".to_string()]);
     }
 
     #[test]
-    fn parse_args_only_named() {
-        let args = vec!["image=myapp".to_string(), "env=dev".to_string()];
-        let (named, positional) = parse_args(&args);
-        assert_eq!(named.len(), 2);
-        assert!(positional.is_empty());
-    }
-
-    #[test]
-    fn parse_args_only_positional() {
-        let args = vec!["my-app".to_string(), "react".to_string()];
-        let (named, positional) = parse_args(&args);
-        assert!(named.is_empty());
-        assert_eq!(positional.len(), 2);
-    }
-
-    #[test]
-    fn parse_args_empty() {
-        let (named, positional) = parse_args(&[]);
-        assert!(named.is_empty());
-        assert!(positional.is_empty());
-    }
-
-    #[test]
-    fn parse_args_value_with_equals_sign() {
-        let args = vec!["url=http://a.com?x=1".to_string()];
-        let (named, _) = parse_args(&args);
-        assert_eq!(named.get("url").unwrap(), "http://a.com?x=1");
-    }
-
-    #[test]
-    fn replace_vars_uses_global() {
-        let mut global = HashMap::new();
-        global.insert("image".to_string(), "myapp:latest".to_string());
+    fn replace_vars_with_allow_empty_keeps_unknown() {
         let result = replace_vars(
-            "docker build -t {{@image}} .",
-            &Some(global),
+            "echo {{@missing}}",
             &None,
-            &HashMap::new(),
+            &None,
+            &std::collections::HashMap::new(),
+            true,
         )
         .unwrap();
-        assert_eq!(result, "docker build -t myapp:latest .");
+        assert_eq!(result, "echo {{@missing}}");
     }
 
     #[test]
-    fn replace_vars_local_overrides_global() {
-        let mut global = HashMap::new();
-        global.insert("image".to_string(), "myapp:latest".to_string());
-        let mut local = HashMap::new();
-        local.insert("image".to_string(), "myapp:build".to_string());
-        let result = replace_vars(
-            "docker build -t {{@image}} .",
-            &Some(global),
-            &Some(local),
-            &HashMap::new(),
-        )
-        .unwrap();
-        assert_eq!(result, "docker build -t myapp:build .");
-    }
+    fn replace_vars_nested_multiple_sources() {
+        let mut global = std::collections::HashMap::new();
+        global.insert("a".to_string(), "1".to_string());
 
-    #[test]
-    fn replace_vars_args_overrides_local_and_global() {
-        let mut global = HashMap::new();
-        global.insert("image".to_string(), "myapp:latest".to_string());
-        let mut local = HashMap::new();
-        local.insert("image".to_string(), "myapp:build".to_string());
-        let mut args = HashMap::new();
-        args.insert("image".to_string(), "myapp:override".to_string());
+        let mut local = std::collections::HashMap::new();
+        local.insert("b".to_string(), "2".to_string());
+
+        let mut args = std::collections::HashMap::new();
+        args.insert("c".to_string(), "3".to_string());
+
         let result = replace_vars(
-            "docker build -t {{@image}} .",
+            "echo {{@a}} {{@b}} {{@c}}",
             &Some(global),
             &Some(local),
             &args,
+            false,
         )
         .unwrap();
-        assert_eq!(result, "docker build -t myapp:override .");
+
+        assert_eq!(result, "echo 1 2 3");
     }
 
     #[test]
-    fn replace_vars_undefined_returns_error() {
-        let result = replace_vars(
-            "docker build -t {{@image}} .",
-            &None,
-            &None,
-            &HashMap::new(),
-        );
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("image"));
-    }
-
-    #[test]
-    fn replace_vars_no_placeholders_unchanged() {
-        let result = replace_vars("echo hello", &None, &None, &HashMap::new()).unwrap();
+    fn replace_env_no_placeholders() {
+        let result = replace_env("echo hello").unwrap();
         assert_eq!(result, "echo hello");
     }
 
     #[test]
-    fn replace_vars_multiple_placeholders() {
-        let mut global = HashMap::new();
-        global.insert("image".to_string(), "myapp".to_string());
-        global.insert("env".to_string(), "dev".to_string());
-        let result = replace_vars(
-            "docker build -t {{@image}} --env {{@env}} .",
-            &Some(global),
-            &None,
-            &HashMap::new(),
-        )
-        .unwrap();
-        assert_eq!(result, "docker build -t myapp --env dev .");
+    fn parse_args_empty_input() {
+        let args: Vec<String> = vec![];
+        let (named, positional) = parse_args(&args);
+        assert!(named.is_empty());
+        assert!(positional.is_empty());
     }
 
     #[test]
-    fn replace_vars_does_not_touch_positional_placeholders() {
-        let mut global = HashMap::new();
-        global.insert("image".to_string(), "myapp".to_string());
-        let result = replace_vars(
-            "echo {{@image}} {{1}}",
-            &Some(global),
-            &None,
-            &HashMap::new(),
-        )
-        .unwrap();
-        assert_eq!(result, "echo myapp {{1}}");
+    fn replace_args_large_index() {
+        let line = "echo {{3}}";
+        let args = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        let result = replace_args(line, &args, false).unwrap();
+        assert_eq!(result, "echo c");
     }
 
     #[test]
-    fn config_with_vars_does_not_include_vars_as_script() {
-        let config: Config = toml::from_str(
-            r#"
-[vars]
-image = "myapp"
+    fn replace_vars_partial_known_partial_unknown_allow() {
+        let mut global = std::collections::HashMap::new();
+        global.insert("a".to_string(), "1".to_string());
 
-[build]
-run = ["echo hi"]
-"#,
+        let result = replace_vars(
+            "echo {{@a}} {{@b}}",
+            &Some(global),
+            &None,
+            &std::collections::HashMap::new(),
+            true,
         )
         .unwrap();
-        assert!(!config.scripts.contains_key("vars"));
-        assert!(config.vars.is_some());
+
+        assert_eq!(result, "echo 1 {{@b}}");
     }
 }

@@ -17,7 +17,11 @@ use runner::{run, RunOptions};
 use crate::validation::validate;
 
 #[derive(Parser, Debug)]
-#[clap(version, about, name = "xeq")]
+#[clap(
+    version,
+    about = "xeq is a cross-platform CLI tool that runs sequences of commands from a single TOML file, making repetitive tasks fast and consistent.",
+    name = "xeq"
+)]
 struct Cli {
     #[clap(subcommand)]
     command: Command,
@@ -25,37 +29,102 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Command {
+    #[command(alias = "c", about = "Set or open the path to your xeq configuration")]
     Config {
+        #[arg(
+            value_name = "PATH",
+            help = "Path to a custom xeq.toml file (optional)"
+        )]
         path: Option<PathBuf>,
     },
+
+    #[command(alias = "r", about = "Run a named script from your xeq.toml")]
     Run {
+        #[arg(value_name = "SCRIPT_NAME", help = "The name of the script to execute")]
         script_name: String,
-        #[arg(short = 'C', long, help = "Keep running even if a command fails")]
+
+        #[arg(
+            short = 'C',
+            long,
+            help = "Continue running remaining commands even if one fails"
+        )]
         continue_on_err: bool,
-        #[arg(short, long, help = "Clear the screen between commands")]
+
+        #[arg(short, long, help = "Clear the terminal before executing each command")]
         clear: bool,
-        #[arg(short, long, help = "Suppress xeq output")]
+
+        #[arg(short, long, help = "Suppress xeq output and only show command output")]
         quiet: bool,
-        #[arg(short, long)]
-        parallel: bool,
-        #[arg(long)]
+
+        #[arg(
+            short,
+            long,
+            value_name = "THREADS",
+            num_args = 0..=1,
+            help = "Run all commands in the script in parallel"
+        )]
+        parallel: Option<usize>,
+
+        #[arg(
+            long,
+            help = "Allow a script to call itself (for intentional recursion)"
+        )]
         allow_recursion: bool,
-        #[arg(long, short)]
+
+        #[arg(
+            long,
+            short,
+            help = "Use the global configuration file instead of the local one"
+        )]
         global: bool,
-        #[arg(long)]
+
+        #[arg(long, help = "Skip loading environment variables from a .env file")]
         no_env: bool,
-        #[arg(long, short)]
+
+        #[arg(
+            long,
+            short,
+            help = "Display a summary of commands and execution times after the script finishes"
+        )]
         summary: bool,
-        #[arg(short, long, num_args = 1.. ,value_name = "VALUES")]
+
+        #[arg(
+            long,
+            short = 'A',
+            help = "Allow scripts to run even if some arguments or variables are missing"
+        )]
+        allow_empty_vars: bool,
+
+        #[arg(short, long, num_args = 1.., value_name = "VALUES", help = "Pass arguments or variables to the script at runtime")]
         args: Option<Vec<String>>,
     },
+
+    #[command(
+        alias = "l",
+        about = "List all available scripts in the current or global xeq.toml"
+    )]
     List {
-        #[arg(long, short)]
+        #[arg(
+            long,
+            short,
+            help = "Show scripts from the global configuration instead of the local one"
+        )]
         global: bool,
     },
+
+    #[command(
+        alias = "i",
+        about = "Create a starter xeq.toml in the current directory"
+    )]
     Init,
+
+    #[command(alias = "v", about = "Validate your scripts without running them")]
     Validate {
-        #[arg(long, short)]
+        #[arg(
+            long,
+            short,
+            help = "Validate scripts in the global configuration instead of the local one"
+        )]
         global: bool,
     },
 }
@@ -64,7 +133,7 @@ fn validate_or_exit() {
     if let Some(path) = load_path() {
         if validate_path(&path).is_err() {
             err!(
-                "The commands TOML file has been deleted or moved.\n      Configure xeq using: xeq config <path/to/file.toml>"
+                "The commands TOML file has been deleted or moved.\nConfigure xeq using: xeq config <path/to/file.toml>"
             );
             process::exit(1);
         }
@@ -114,6 +183,7 @@ fn main() {
             no_env,
             global,
             summary,
+            allow_empty_vars,
         } => {
             if global {
                 validate_or_exit()
@@ -138,6 +208,7 @@ fn main() {
                 parallel,
                 allow_recursion,
                 summary,
+                allow_empty_vars,
             };
 
             let cwd = std::env::current_dir().unwrap_or_else(|_| {

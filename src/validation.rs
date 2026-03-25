@@ -1,6 +1,6 @@
 use colored::Colorize;
 
-use crate::types::{Config, ScriptOption, Scripts};
+use crate::types::{Config, Scripts};
 
 fn check_recursion(
     name: &str,
@@ -47,24 +47,43 @@ pub fn validate(config: &Config) -> bool {
             &mut has_errs,
             &mut script_has_errs,
         );
+        if script.fallback.is_some()
+            && script
+                .options
+                .as_ref()
+                .is_some_and(|o| o.contains(&crate::types::ScriptOption::ContinueOnErr))
+        {
+            err!(
+                "'{}': fallback and continue_on_err cannot be used together",
+                name
+            );
+            has_errs = true;
+            script_has_errs = true;
+        }
 
-        if let Some(opts) = &script.options {
-            if opts.contains(&ScriptOption::Parallel) {
-                let has_cd = script.run.iter().any(|l| l.starts_with("cd "));
-                let has_nested = script.run.iter().any(|l| l.starts_with("xeq://"));
-                if has_cd {
-                    err!("'{}': has 'parallel' but contains a 'cd' command", name);
-                    has_errs = true;
-                    script_has_errs = true;
-                }
-                if has_nested {
-                    err!(
-                        "'{}': has 'parallel' but contains nested 'xeq://' calls",
-                        name
-                    );
-                    has_errs = true;
-                    script_has_errs = true;
-                }
+        if let Some(n) = script.parallel_threads {
+            if n <= 1 {
+                err!("'{}': parallel_threads must be greater than 1", name);
+                has_errs = true;
+                script_has_errs = true;
+            }
+        }
+
+        if script.parallel_threads.is_some() {
+            let has_cd = script.run.iter().any(|l| l.starts_with("cd "));
+            let has_nested = script.run.iter().any(|l| l.starts_with("xeq://"));
+            if has_cd {
+                err!("'{}': has 'parallel' but contains a 'cd' command", name);
+                has_errs = true;
+                script_has_errs = true;
+            }
+            if has_nested {
+                err!(
+                    "'{}': has 'parallel' but contains nested 'xeq://' calls",
+                    name
+                );
+                has_errs = true;
+                script_has_errs = true;
             }
         }
 

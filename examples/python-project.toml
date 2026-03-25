@@ -19,7 +19,7 @@ run = [
 
 [check]
 description = "Run linter and type checker in parallel"
-options = ["parallel"]
+parallel_threads = 4
 run = [
     "{{@venv}}/bin/ruff check {{@app}}",
     "{{@venv}}/bin/mypy {{@app}}"

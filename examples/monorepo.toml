@@ -55,7 +55,7 @@ run = [
 
 [test-all]
 description = "Run all tests in parallel"
-options = ["parallel"]
+parallel_threads = 4
 run = [
     "npm run test --workspace={{@web}}",
     "npm run test --workspace={{@mobile}}",
@@ -64,7 +64,7 @@ run = [
 
 [lint-all]
 description = "Lint all packages in parallel"
-options = ["parallel"]
+parallel_threads = 4
 run = [
     "npm run lint --workspace={{@web}}",
     "npm run lint --workspace={{@mobile}}",

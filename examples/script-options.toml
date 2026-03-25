@@ -8,7 +8,7 @@ run = [
 
 [test]
 description = "Tests run in parallel by default"
-options = ["parallel"]
+parallel_threads = 4
 run = [
     "jest --testPathPattern=unit",
     "jest --testPathPattern=integration",

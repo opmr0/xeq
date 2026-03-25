@@ -8,7 +8,7 @@ run = ["go mod download"]
 
 [check]
 description = "Run all checks in parallel"
-options = ["parallel"]
+parallel_threads = 4
 run = [
     "go vet ./...",
     "staticcheck ./...",

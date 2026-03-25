@@ -18,16 +18,18 @@ pub struct SavedPath {
 pub enum ScriptOption {
     Quiet,
     Clear,
-    Parallel,
     ContinueOnErr,
     AllowRecursion,
     Summary,
+    AllowEmptyVars,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Script {
     pub description: Option<String>,
     pub options: Option<Vec<ScriptOption>>,
+    pub parallel_threads : Option<usize>,
+    pub fallback: Option<String>,
     pub dir: Option<String>,
     pub run: Vec<String>,
     pub vars: Option<HashMap<String, String>>,
@@ -56,7 +58,9 @@ run = []
     fn script_struct_serializes_correctly() {
         let script = Script {
             dir: None,
+            fallback: None,
             description: None,
+            parallel_threads: None,
             options: None,
             vars: None,
             run: vec!["echo hi".to_string(), "echo bye".to_string()],

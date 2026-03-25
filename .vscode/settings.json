@@ -1,6 +1,9 @@
 {
     "cSpell.words": [
         "Clippy",
-        "dotenvy"
+        "cpus",
+        "dotenvy",
+        "threadpool",
+        "varname"
     ]
 }

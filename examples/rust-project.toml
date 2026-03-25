@@ -1,6 +1,6 @@
 [check]
 description = "Run all checks in parallel"
-options = ["parallel"]
+parallel_threads = 4
 run = [
     "cargo fmt --check",
     "cargo clippy -- -D warnings",

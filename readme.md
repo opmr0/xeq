@@ -1,4 +1,5 @@
-<img src="./logo.png" alt="logo" width="120"/>
+<div align="center">
+<img src="./assets/logo_rounded.png" alt="logo" width="150"/>
 
 # xeq
 
@@ -8,19 +9,18 @@
 [![Build](https://github.com/opmr0/xeq/actions/workflows/release.yml/badge.svg)](https://github.com/opmr0/xeq/actions)
 [![Rust](https://img.shields.io/badge/rust-stable-orange)](https://www.rust-lang.org)
 
-**Run sequences of shell commands with a single word.**
+**xeq is a cross-platform CLI tool that runs sequences of commands from a single TOML file, making repetitive tasks fast and consistent.**
 
 Every project has a setup ritual. Ten commands, always in the same order, run every time. Write them once in a `xeq.toml`, commit it, and anyone on any OS runs the exact same steps with one command.
 
-```bash
-xeq run setup
-```
+</div>
 
 ---
 
 ## Table of Contents
 
 - [Quick Start](#quick-start)
+- [Comparison with other tools](#Comparison-with-other-tools)
 - [Installation](#installation)
 - [Commands](#commands)
 - [TOML Format](#toml-format)
@@ -33,10 +33,33 @@ xeq run setup
   - [6. Parallel Execution](#6-parallel-execution)
   - [7. Global Configuration](#7-global-configuration)
   - [8. Run Summary](#8-run-summary)
+  - [9. Fallback script](#9-fallback-script)
 - [Examples](#examples)
 - [How It Works](#how-it-works)
 - [Contributing](#contributing)
 - [License](#license)
+
+---
+
+## Installation
+
+**macOS / Linux**
+
+```bash
+curl -sSf https://raw.githubusercontent.com/opmr0/xeq/main/install.sh | sh
+```
+
+**Windows (PowerShell)**
+
+```powershell
+iwr https://raw.githubusercontent.com/opmr0/xeq/main/install.ps1 -UseBasicParsing | iex
+```
+
+**Via cargo (Rust package manager)**
+
+```bash
+cargo install xeq
+```
 
 ---
 
@@ -64,29 +87,22 @@ xeq run dev
 
 xeq finds `xeq.toml` in the current directory automatically. No extra setup needed.
 
-> Create a `xeq.toml` file with `xeq init` and xeq creates one for you.
+> Use `xeq init` to create a `xeq.toml` file, and xeq will generate one for you.
 
 ---
 
-## Installation
+## Comparison with other tools
 
-**macOS / Linux**
-
-```bash
-curl -sSf https://raw.githubusercontent.com/opmr0/xeq/main/install.sh | sh
-```
-
-**Windows (PowerShell)**
-
-```powershell
-iwr https://raw.githubusercontent.com/opmr0/xeq/main/install.ps1 -UseBasicParsing | iex
-```
-
-**Via cargo**
-
-```bash
-cargo install xeq
-```
+| Feature            | **xeq**              | **Makefile**       | **npm scripts** | **just**     |
+| ------------------ | -------------------- | ------------------ | --------------- | ------------ |
+| File type          | TOML                 | Makefile           | package.json    | Justfile     |
+| Works on all OS    | Yes                  | Mostly Linux/macOS | Yes             | Yes          |
+| Validation command | Yes (`xeq validate`) | No                 | No              | No           |
+| Variables          | Yes                  | Yes                | Limited         | Yes          |
+| Args support       | Yes                  | Limited            | Limited         | Yes          |
+| Nested scripts     | Yes (`xeq://`)       | Yes                | No              | Yes          |
+| Parallel run       | Yes                  | Yes (`-j`)         | No              | No           |
+| .env support       | Yes (auto)           | No                 | No              | Yes (opt-in) |
 
 ---
 
@@ -115,17 +131,18 @@ xeq run create --args my-app
 xeq run deploy --args env=prod
 ```
 
-| Flag                 | Short | Description                                                                     |
-| -------------------- | ----- | ------------------------------------------------------------------------------- |
-| `--continue-on-err`  | `-C`  | Keep going even if a command fails                                              |
-| `--quiet`            | `-q`  | Hide xeq's own log messages                                                     |
-| `--clear`            | `-c`  | Clear the terminal before each command                                          |
-| `--parallel`         | `-p`  | Run all commands at the same time                                               |
-| `--allow-recursion`  |       | Let a script call itself                                                        |
-| `--args <values...>` | `-a`  | Pass arguments into the script, positional or `key=value`                      |
-| `--global`           | `-g`  | Use the globally saved path instead of the local `xeq.toml`                    |
-| `--no-env`           |       | Skip loading the `.env` file                                                    |
-| `--summary`          | `-s`  | Print a summary table of commands and execution times after the script finishes |
+| Flag                       | Short | Description                                                                                                       |
+| -------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------- |
+| `--continue-on-err`        | `-C`  | Keep going even if a command fails                                                                                |
+| `--quiet`                  | `-q`  | Hide xeq's own log messages                                                                                       |
+| `--clear`                  | `-c`  | Clear the terminal before each command                                                                            |
+| `--parallel [threads_num]` | `-p`  | Run all commands at the same time with certain number of threads (default: your PC's logical processors(threads)) |
+| `--args <values...>`       | `-a`  | Pass arguments into the script, positional or `key=value`                                                         |
+| `--global`                 | `-g`  | Use the globally saved path instead of the local `xeq.toml`                                                       |
+| `--summary`                | `-s`  | Print a summary table of commands and execution times after the script finishes                                   |
+| `--allow-empty-args`       | `-A`  | Remove the restrictions on arguments and variables                                                                |
+| `--no-env`                 |       | Skip loading the `.env` file                                                                                      |
+| `--allow-recursion`        |       | Let a script call itself                                                                                          |
 
 ---
 
@@ -151,11 +168,13 @@ xeq validate --global
 
 Catches:
 
-- Nested `xeq://` calls pointing to scripts that don't exist
-- `parallel` option combined with `cd` or `xeq://`
-- Undefined `{{@vars}}` not defined in vars (warns, doesn't fail)
+- Nested `xeq://` calls pointing to scripts that don't exist. see [Nested Scripts](#5-nested-scripts)
+- `parallel` is enabled and there is a `cd` or `xeq://` in the commands. see [Parallel Execution](#6-parallel-execution)
+- Undefined `{{@vars}}` not defined in vars. see [Variables](#2-variables)
 - Circular dependencies between scripts
+- `fallback` and `continue_on_err` set on the same script. see [Fallback script](#9-fallback-script)
 - `dir` paths that don't exist
+- parallel_thread filed equals 0 or 1
 
 ---
 
@@ -168,6 +187,17 @@ xeq config ~/my-scripts/xeq.toml   # save the path
 xeq config                          # open the saved file in your default editor
 ```
 
+### Commands aliases
+
+xeq supports command aliases so `xeq run` is the same as `xeq r`
+
+| command        | alias   |
+| -------------- | ------- |
+| `xeq run`      | `xeq r` |
+| `xeq config`   | `xeq c` |
+| `xeq init`     | `xeq i` |
+| `xeq validate` | `xeq v` |
+
 ---
 
 ## TOML Format
@@ -177,6 +207,7 @@ A `xeq.toml` file contains named scripts. Each script needs at least a `run` arr
 ```toml
 [my-script]
 description = "What this script does"
+parallel_threads = 6
 dir = "./my_app"
 options = ["quiet"]
 run = [
@@ -186,9 +217,11 @@ run = [
 ```
 
 - Script names are **case-sensitive**, `Build` and `build` are different scripts
-- `description` is optional and only shows in `xeq list`
-- `dir` is the path where the script will run, it can be an absolute or a relative path
-- `options` are optional, see [Script Options](#1-script-options)
+- `run` **required**, contains all commands to run
+- `description` _optional_, only shows in `xeq list`
+- `parallel_threads` _optional_, enables parallel execution and set a number of threads for the execution. see [Parallel Execution](#6-parallel-execution)
+- `dir` _optional_, is the path where the script will run, it can be an absolute or a relative path
+- `options` _optional_. see [Script Options](#1-script-options)
 
 ---
 
@@ -200,13 +233,13 @@ Bake default behavior into a script so you don't have to pass flags every time:
 
 ```toml
 [build]
-options = ["quiet", "parallel"]
+options = ["quiet"]
 run = ["cargo build", "cargo test"]
 ```
 
 Now `xeq run build` always runs quietly and in parallel, no flags needed.
 
-**Available options:** `quiet`, `clear`, `parallel`, `continue_on_err`, `allow_recursion`, `summary`
+**Available options:** `quiet`, `clear`, `continue_on_err`, `allow_recursion`, `summary`, `allow_empty_vars`
 
 **Toggling:** CLI flags _toggle_ script options. If a script has `quiet` baked in and you pass `--quiet`, it turns quiet _off_ for that run.
 
@@ -253,11 +286,13 @@ run = ["docker push {{@image}}"]          # uses "myapp:latest"
 xeq run build --args image=myapp:hotfix
 ```
 
-**Resolution order, most specific wins:**
+**Resolution order, most specific win:**
 
 ```
 --args (runtime)  ->  local vars (per script)  ->  global vars (file-level)
 ```
+
+> an error will happen if the vars isn't defined, you can prevent this by using `--allow-empty-vars` / `-A` flag or `allow_empty_flag` option and the raw `{{@varname}}` will be passed if no variables was passed
 
 ---
 
@@ -286,6 +321,8 @@ Mix named and positional args in a single call:
 xeq run deploy --args env=production my-app
 ```
 
+> an error will happen if the argument isn't passed, you can prevent this from happening using `--allow-empty-vars` / `-A` flag or `allow_empty_flag` option and the raw `{{n}}` will be passed if no arguments was provided
+
 ---
 
 ### 4. Environment Variables
@@ -310,6 +347,8 @@ xeq run deploy   # API_TOKEN and DEPLOY_ENV loaded automatically
 ```
 
 Pass `--no-env` to skip loading the `.env` file.
+
+> an error will happen if the environment variable doesn't exists
 
 ---
 
@@ -344,7 +383,7 @@ Run all commands in a script at the same time:
 
 ```toml
 [check]
-options = ["parallel"]
+parallel_threads = 4
 run = [
     "cargo test",
     "cargo clippy",
@@ -352,9 +391,15 @@ run = [
 ]
 ```
 
+`parallel_threads` field enables parallel execution and set a number of threads for the execution
+
+use `-p` to enable parallel execution and set the number of threads to your PC's threads or disable it if it's enable in the config file
+
+use `-p <threads>` to enable parallel execution or override the parallel_threads value on a single run
+
 ```bash
 xeq run check      # all three run at the same time
-xeq run check -p   # same using CLI flag
+xeq run check -p 4   # same using CLI flag
 ```
 
 > Scripts with `cd` commands or `xeq://` calls cannot run in parallel. Use `xeq validate` to catch this before running.
@@ -391,6 +436,27 @@ cargo fmt                      0.26s  succeeded
 
 ---
 
+## 9. Fallback script
+
+Set a script to run automatically when any command in a script fails:
+
+```toml
+[build]
+run = ["cargo build", "cargo test"]
+fallback = "notify-failure"
+
+[notify-failure]
+run = ["echo build failed, notifying team"]
+```
+
+If any command in `build` fails, xeq immediately runs `notify-failure` and stops the rest of `build`.
+
+The fallback script receives the same `--args` that were passed to the original script.
+
+> **Note:** `fallback` and `continue_on_err` cannot be used together on the same script. xeq will exit with an error if both are set.
+
+---
+
 ## Examples
 
 The [`examples/`](./examples) folder has ready-to-use TOML files for common workflows.
@@ -421,43 +487,7 @@ The [`examples/`](./examples) folder has ready-to-use TOML files for common work
 - `cd` commands update the working directory for all subsequent commands in that script
 - Variables resolve in order: `--args` -> local vars -> global vars
 - Environment variables are loaded from `.env` automatically before any script runs
-- On failure, xeq exits with the same exit code as the failed command
 - Script names are case-sensitive: `Build` and `build` are different scripts
-
----
-
-## Contributing
-
-Contributions are welcome, whether it's a bug fix, a new feature, or an improvement to the docs. [Open an issue](https://github.com/opmr0/xeq/issues).
-
-**Getting started:**
-
-```bash
-git clone https://github.com/opmr0/xeq
-cd xeq
-cargo build
-cargo test
-```
-
-**Before submitting a PR:**
-
-- Run `cargo fmt` to format your code
-- Run `cargo clippy` and fix any warnings
-- Run `cargo test` and make sure all tests pass
-- If you're adding a new feature, add tests for it
-
-**Project structure:**
-
-```
-src/
-  main.rs       # CLI parsing and command dispatch
-  config.rs     # Path saving/loading and TOML reading
-  runner.rs     # Script execution logic
-  types.rs      # Shared types (Script, Scripts, Config, SavedPath)
-  macros.rs     # log! and err! macros
-  validation.rs # Validation functions
-examples/       # Ready-to-use TOML files
-```
 
 ---
 
