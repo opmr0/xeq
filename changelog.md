@@ -4,6 +4,12 @@ All notable changes to xeq will be documented here.
 
 ---
 
+## 2.2.1 - 2026-03-26
+
+### Fixed
+- xeq detects any number as a placeholder for an argument
+
+
 ## 2.2.0 - 2026-03-26
 
 ### Added

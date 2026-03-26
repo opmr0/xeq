@@ -1,6 +1,6 @@
 [package]
 name = "xeq"
-version = "2.2.0"
+version = "2.2.1"
 edition = "2021"
 description = "xeq is a cross-platform CLI tool that runs sequences of commands from a single TOML file, making repetitive tasks fast and consistent."
 license = "MIT"

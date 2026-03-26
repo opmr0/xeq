@@ -513,7 +513,7 @@ run = [
 
 Available shells: `sh`,`bash`,`zsh`,`cmd`,`powershell`,`fish`
 
-When the shell value isn't supported xeq will return an err
+When the shell value isn't supported xeq will return an error
 
 ## Examples
 

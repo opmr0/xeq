@@ -28,7 +28,7 @@ pub fn replace_args(line: &str, args: &[String], allow_empty_vars: bool) -> Resu
     let mut line = line.to_owned();
     let largest_placeholder: usize = line
         .split_whitespace()
-        .filter(|x| !x.contains('@') || !x.contains('$'))
+        .filter(|x| x.starts_with("{{") && x.ends_with("}}"))
         .map(|x| {
             x.trim_end_matches("}}")
                 .trim_start_matches("{{")
