@@ -1,13 +1,11 @@
-use std::collections::HashMap;
-use std::env;
-use std::{collections::HashSet, path::PathBuf, process};
-
-use colored::Colorize;
-
 use crate::types::Config;
 use crate::types::ScriptOption::*;
-
+use colored::Colorize;
+use std::collections::HashMap;
+use std::env;
+use std::path::Path;
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::{collections::HashSet, path::PathBuf, process};
 
 #[derive(Clone, Copy)]
 pub struct RunOptions {
@@ -139,20 +137,38 @@ pub fn parse_args(args: &[String]) -> (HashMap<String, String>, Vec<String>) {
     (named, positional)
 }
 
-pub fn spawn_command(line: &str, cwd: &PathBuf) -> std::process::Child {
-    #[cfg(target_os = "windows")]
-    return std::process::Command::new("cmd")
-        .args(["/C", line])
-        .current_dir(cwd)
-        .spawn()
-        .expect("failed to spawn process - is 'cmd.exe' available?");
+pub fn spawn_command(
+    line: &str,
+    cwd: &Path,
+    shell: &Option<String>,
+) -> std::io::Result<std::process::Child> {
+    let shells: HashMap<&str, &str> = HashMap::from([
+        ("powershell", "-c"),
+        ("bash", "-c"),
+        ("fish", "-c"),
+        ("cmd", "/C"),
+        ("zsh", "-c"),
+        ("sh", "-c"),
+    ]);
 
-    #[cfg(not(target_os = "windows"))]
-    return std::process::Command::new("sh")
-        .args(["-c", line])
+    let (shell_cmd, flag): (String, &str) = if let Some(s) = shell {
+        let key = s.to_lowercase();
+        (
+            s.clone(),
+            *shells
+                .get(key.as_str())
+                .ok_or_else(|| std::io::Error::other("Unknown shell"))?,
+        )
+    } else if cfg!(target_os = "windows") {
+        ("cmd".to_string(), "/C")
+    } else {
+        ("sh".to_string(), "-c")
+    };
+
+    std::process::Command::new(&shell_cmd)
+        .args([flag, line])
         .current_dir(cwd)
         .spawn()
-        .expect("failed to spawn process - is 'sh' available?");
 }
 
 pub fn run(
@@ -301,11 +317,22 @@ pub fn run(
 
             for line in resolved_lines {
                 let cwd = cwd.clone();
+                let shell = config.shell.clone();
                 let tx = tx.clone();
                 pool.execute(move || {
-                    let status = spawn_command(&line, &cwd)
-                        .wait()
-                        .expect("failed to wait for child process");
+                    let status = match spawn_command(&line, &cwd, &shell) {
+                        Ok(mut child) => match child.wait() {
+                            Ok(status) => status,
+                            Err(_) => {
+                                tx.send(false).ok();
+                                return;
+                            }
+                        },
+                        Err(_) => {
+                            tx.send(false).ok();
+                            return;
+                        }
+                    };
 
                     let success = status.success();
                     tx.send(success).expect("Failed to send status");
@@ -420,9 +447,12 @@ pub fn run(
                     match separator {
                         Some("&&") => {
                             if cd_succeeded {
-                                let status = spawn_command(rest, &cwd)
+                                let mut child = spawn_command(rest, &cwd, &config.shell)
+                                    .map_err(|e| format!("failed to spawn '{}': {}", rest, e))?;
+
+                                let status = child
                                     .wait()
-                                    .expect("failed to wait for child process");
+                                    .map_err(|e| format!("failed to wait for '{}': {}", rest, e))?;
                                 if !status.success() {
                                     err!(
                                         "'{}' exited with code {}",
@@ -439,9 +469,12 @@ pub fn run(
                         }
                         Some("||") => {
                             if !cd_succeeded {
-                                let status = spawn_command(rest, &cwd)
+                                let mut child = spawn_command(rest, &cwd, &config.shell)
+                                    .map_err(|e| format!("failed to spawn '{}': {}", rest, e))?;
+
+                                let status = child
                                     .wait()
-                                    .expect("failed to wait for child process");
+                                    .map_err(|e| format!("failed to wait for '{}': {}", rest, e))?;
                                 if !status.success() {
                                     err!(
                                         "'{}' exited with code {}",
@@ -457,9 +490,12 @@ pub fn run(
                             }
                         }
                         Some(";") => {
-                            let status = spawn_command(rest, &cwd)
+                            let mut child = spawn_command(rest, &cwd, &config.shell)
+                                .map_err(|e| format!("failed to spawn '{}': {}", rest, e))?;
+
+                            let status = child
                                 .wait()
-                                .expect("failed to wait for child process");
+                                .map_err(|e| format!("failed to wait for '{}': {}", rest, e))?;
                             if !status.success() {
                                 err!(
                                     "'{}' exited with code {}",
@@ -475,7 +511,9 @@ pub fn run(
                         }
                         Some("&") => {
                             #[allow(clippy::zombie_processes)]
-                            let _ = spawn_command(rest, &cwd);
+                            if let Err(e) = spawn_command(rest, &cwd, &config.shell) {
+                                err!("failed to spawn '{}': {}", rest, e);
+                            }
                             log!(
                                 opts.quiet,
                                 "'{}' {}",
@@ -492,9 +530,12 @@ pub fn run(
         }
 
         let start = std::time::Instant::now();
-        let status = spawn_command(&line, &cwd)
+        let mut child = spawn_command(&line, &cwd, &config.shell)
+            .map_err(|e| format!("failed to spawn '{}': {}", line, e))?;
+
+        let status = child
             .wait()
-            .expect("failed to wait for child process");
+            .map_err(|e| format!("failed to wait for '{}': {}", line, e))?;
         let duration = start.elapsed().as_secs_f64();
 
         if !status.success() {
@@ -673,5 +714,72 @@ mod tests {
         .unwrap();
 
         assert_eq!(result, "echo 1 {{@b}}");
+    }
+    use std::process::Command;
+
+    #[test]
+    fn test_posix_shell_variable() {
+        let output = Command::new("sh")
+            .arg("-c")
+            .arg("VAR=hello && echo $VAR")
+            .output()
+            .expect("Failed to run shell");
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            stdout.contains("hello"),
+            "Expected 'hello', got: {}",
+            stdout
+        );
+    }
+
+    #[test]
+    fn test_bash_only_feature() {
+        let output = Command::new("bash")
+            .arg("-c")
+            .arg("[[ 1 -eq 1 ]] && echo works")
+            .output()
+            .expect("Failed to run bash");
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            stdout.contains("works"),
+            "Expected 'works', got: {}",
+            stdout
+        );
+    }
+
+    #[test]
+    fn test_windows_cmd_variable() {
+        if cfg!(windows) {
+            let output = Command::new("cmd")
+                .args(&["/C", "set VAR=hello && echo %VAR%"])
+                .output()
+                .expect("Failed to run cmd");
+
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            assert!(
+                stdout.contains("hello"),
+                "Expected 'hello', got: {}",
+                stdout
+            );
+        }
+    }
+
+    #[test]
+    fn test_windows_powershell_variable() {
+        if cfg!(windows) {
+            let output = Command::new("powershell")
+                .args(&["-Command", "$env:TEST_VAR='hello'; echo $env:TEST_VAR"])
+                .output()
+                .expect("Failed to run powershell");
+
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            assert!(
+                stdout.contains("hello"),
+                "Expected 'hello', got: {}",
+                stdout
+            );
+        }
     }
 }

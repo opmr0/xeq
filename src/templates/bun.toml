@@ -1,0 +1,45 @@
+[install]
+description = "Install dependencies"
+run = ["bun install"]
+
+[dev]
+description = "Start dev server"
+run = [
+    "xeq://install",
+    "bun run dev",
+]
+
+[build]
+description = "Build for production"
+run = [
+    "xeq://install",
+    "bun run build",
+]
+
+[start]
+description = "Run production server"
+run = ["bun run start"]
+
+[test]
+description = "Run test suite"
+run = ["bun test"]
+
+[check]
+description = "Lint and test in parallel"
+parallel_threads = 2
+run = [
+    "bun run lint",
+    "bun test",
+]
+
+[bundle]
+description = "Bundle into a single executable"
+run = ["bun build ./index.ts --compile --outfile my-app"]
+
+[upgrade]
+description = "Upgrade Bun to latest"
+run = ["bun upgrade"]
+
+[clean]
+description = "Remove node_modules"
+run = ["rm -rf node_modules"]

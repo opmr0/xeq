@@ -1,0 +1,53 @@
+[vars]
+project = "MyApp"
+config = "Release"
+
+[restore]
+description = "Restore NuGet packages"
+run = ["dotnet restore"]
+
+[build]
+description = "Build the solution"
+run = [
+    "xeq://restore",
+    "dotnet build --configuration {{@config}}",
+]
+
+[run]
+description = "Run the project"
+run = ["dotnet run --project {{@project}}"]
+
+[test]
+description = "Run test suite"
+run = ["dotnet test"]
+
+[check]
+description = "Format check and test in parallel"
+parallel_threads = 2
+run = [
+    "dotnet format --verify-no-changes",
+    "dotnet test",
+]
+
+[publish]
+description = "Publish for production"
+run = [
+    "xeq://build",
+    "dotnet publish --configuration {{@config}} --output ./publish",
+]
+
+[format]
+description = "Auto-format code"
+run = ["dotnet format"]
+
+[clean]
+description = "Clean build artifacts"
+run = ["dotnet clean"]
+
+[migrations-add]
+description = "Add a new EF Core migration — xeq run migrations-add --args InitialCreate"
+run = ["dotnet ef migrations add {{1}}"]
+
+[migrations-apply]
+description = "Apply pending EF Core migrations"
+run = ["dotnet ef database update"]

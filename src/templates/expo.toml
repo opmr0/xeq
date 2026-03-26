@@ -1,0 +1,49 @@
+[vars]
+pkg_manager = "npm"
+platform = "ios"
+
+[install]
+description = "Install dependencies"
+run = ["{{@pkg_manager}} install"]
+
+[dev]
+description = "Start Expo dev server"
+run = [
+    "xeq://install",
+    "{{@pkg_manager}} run start",
+]
+
+[ios]
+description = "Run on iOS simulator"
+run = ["{{@pkg_manager}} run ios"]
+
+[android]
+description = "Run on Android emulator"
+run = ["{{@pkg_manager}} run android"]
+
+[build-preview]
+description = "Build preview with EAS"
+run = ["eas build --profile preview --platform {{@platform}}"]
+
+[build-production]
+description = "Build production with EAS"
+run = ["eas build --profile production --platform {{@platform}}"]
+
+[submit]
+description = "Submit to app store"
+run = ["eas submit --platform {{@platform}}"]
+
+[test]
+description = "Run Jest tests"
+run = ["{{@pkg_manager}} run test"]
+
+[lint]
+description = "Run ESLint"
+run = ["{{@pkg_manager}} run lint"]
+
+[clean]
+description = "Clear Expo cache and node_modules"
+run = [
+    "expo start --clear",
+    "rm -rf node_modules",
+]

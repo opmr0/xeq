@@ -1,0 +1,50 @@
+[vars]
+venv = ".venv"
+python = "python3"
+host = "0.0.0.0"
+port = "8000"
+app = "main:app"
+
+[setup]
+description = "Create virtualenv and install deps"
+run = [
+    "{{@python}} -m venv {{@venv}}",
+    "{{@venv}}/bin/pip install -r requirements.txt",
+]
+
+[dev]
+description = "Start FastAPI dev server with reload"
+run = ["{{@venv}}/bin/uvicorn {{@app}} --reload --host {{@host}} --port {{@port}}"]
+
+[start]
+description = "Start FastAPI production server"
+run = ["{{@venv}}/bin/uvicorn {{@app}} --host {{@host}} --port {{@port}} --workers 4"]
+
+[test]
+description = "Run pytest"
+run = ["{{@venv}}/bin/pytest"]
+
+[check]
+description = "Lint, type-check and test in parallel"
+parallel_threads = 3
+run = [
+    "{{@venv}}/bin/ruff check .",
+    "{{@venv}}/bin/mypy .",
+    "{{@venv}}/bin/pytest",
+]
+
+[migrate]
+description = "Run Alembic migrations"
+run = ["{{@venv}}/bin/alembic upgrade head"]
+
+[migrate-new]
+description = "Create new migration — xeq run migrate-new --args my_migration"
+run = ["{{@venv}}/bin/alembic revision --autogenerate -m '{{1}}'"]
+
+[clean]
+description = "Remove venv and cache"
+run = [
+    "rm -rf {{@venv}}",
+    "find . -type d -name __pycache__ -exec rm -rf {} +",
+    "find . -name '*.pyc' -delete",
+]

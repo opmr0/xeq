@@ -1,0 +1,41 @@
+[vars]
+inventory = "inventory/hosts.yml"
+playbook = "site.yml"
+vault_file = "vault.yml"
+
+[ping]
+description = "Ping all hosts"
+run = ["ansible all -i {{@inventory}} -m ping"]
+
+[deploy]
+description = "Run main playbook"
+run = ["ansible-playbook -i {{@inventory}} {{@playbook}}"]
+fallback = "notify-failure"
+
+[deploy-check]
+description = "Dry run the playbook"
+run = ["ansible-playbook -i {{@inventory}} {{@playbook}} --check"]
+
+[deploy-tag]
+description = "Run playbook for a specific tag — xeq run deploy-tag --args my-tag"
+run = ["ansible-playbook -i {{@inventory}} {{@playbook}} --tags {{1}}"]
+
+[vault-edit]
+description = "Edit encrypted vault file"
+run = ["ansible-vault edit {{@vault_file}}"]
+
+[vault-encrypt]
+description = "Encrypt a file — xeq run vault-encrypt --args secrets.yml"
+run = ["ansible-vault encrypt {{1}}"]
+
+[vault-decrypt]
+description = "Decrypt a file — xeq run vault-decrypt --args secrets.yml"
+run = ["ansible-vault decrypt {{1}}"]
+
+[lint]
+description = "Lint all playbooks"
+run = ["ansible-lint {{@playbook}}"]
+
+[notify-failure]
+description = "Fallback — called when deploy fails"
+run = ["echo ansible deploy failed"]

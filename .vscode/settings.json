@@ -3,6 +3,9 @@
         "Clippy",
         "cpus",
         "dotenvy",
+        "fastapi",
+        "laravel",
+        "tauri",
         "threadpool",
         "varname"
     ]

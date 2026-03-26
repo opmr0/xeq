@@ -1,0 +1,4 @@
+[default]
+run = [
+    "echo hello from xeq"
+]

@@ -1,0 +1,39 @@
+[vars]
+gradle = "./gradlew"
+flavor = "debug"
+
+[build]
+description = "Build debug APK"
+run = ["{{@gradle}} assembleDebug"]
+
+[build-release]
+description = "Build release APK"
+run = ["{{@gradle}} assembleRelease"]
+
+[install]
+description = "Build and install on connected device"
+run = ["{{@gradle}} installDebug"]
+
+[test]
+description = "Run unit tests"
+run = ["{{@gradle}} test"]
+
+[test-instrumented]
+description = "Run instrumented tests on device"
+run = ["{{@gradle}} connectedAndroidTest"]
+
+[check]
+description = "Lint and unit tests in parallel"
+parallel_threads = 2
+run = [
+    "{{@gradle}} lint",
+    "{{@gradle}} test",
+]
+
+[bundle]
+description = "Build release AAB for Play Store"
+run = ["{{@gradle}} bundleRelease"]
+
+[clean]
+description = "Clean build artifacts"
+run = ["{{@gradle}} clean"]

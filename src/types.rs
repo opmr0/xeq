@@ -3,6 +3,7 @@ use std::{collections::HashMap, path::PathBuf};
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
+    pub shell: Option<String>,
     pub vars: Option<HashMap<String, String>>,
     #[serde(flatten)]
     pub scripts: Scripts,
@@ -41,7 +42,7 @@ pub type Scripts = HashMap<String, Script>;
 mod tests {
     use super::*;
 
-    fn valid_toml() -> &'static str {
+    fn sample_toml() -> &'static str {
         r#"
 [build]
 run = ["echo building", "echo done"]
@@ -55,7 +56,47 @@ run = []
     }
 
     #[test]
-    fn script_struct_serializes_correctly() {
+    fn parses_scripts_correctly() {
+        let scripts: Scripts = toml::from_str(sample_toml()).unwrap();
+        assert!(scripts.contains_key("build"));
+        assert!(scripts.contains_key("test"));
+        assert!(scripts.contains_key("empty"));
+    }
+
+    #[test]
+    fn parses_run_commands() {
+        let scripts: Scripts = toml::from_str(sample_toml()).unwrap();
+        let build = scripts.get("build").unwrap();
+        assert_eq!(build.run, vec!["echo building", "echo done"]);
+    }
+
+    #[test]
+    fn parses_empty_run_array() {
+        let scripts: Scripts = toml::from_str(sample_toml()).unwrap();
+        assert!(scripts.get("empty").unwrap().run.is_empty());
+    }
+
+    #[test]
+    fn missing_run_field_is_an_error() {
+        let result: Result<Scripts, _> = toml::from_str("[build]\ncommands = [\"echo hi\"]");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn empty_toml_gives_empty_scripts() {
+        let scripts: Scripts = toml::from_str("").unwrap();
+        assert!(scripts.is_empty());
+    }
+
+    #[test]
+    fn script_lookup_is_case_sensitive() {
+        let scripts: Scripts = toml::from_str(sample_toml()).unwrap();
+        assert!(scripts.get("Build").is_none());
+        assert!(scripts.get("build").is_some());
+    }
+
+    #[test]
+    fn script_serializes_run_commands() {
         let script = Script {
             dir: None,
             fallback: None,
@@ -63,99 +104,15 @@ run = []
             parallel_threads: None,
             options: None,
             vars: None,
-            run: vec!["echo hi".to_string(), "echo bye".to_string()],
+            run: vec!["echo hi".into(), "echo bye".into()],
         };
-        let toml_str = toml::to_string(&script).unwrap();
-        assert!(toml_str.contains("echo hi"));
-        assert!(toml_str.contains("echo bye"));
+        let out = toml::to_string(&script).unwrap();
+        assert!(out.contains("echo hi"));
+        assert!(out.contains("echo bye"));
     }
 
     #[test]
-    fn script_struct_deserializes_correctly() {
-        let script: Script = toml::from_str(r#"run = ["echo hello"]"#).unwrap();
-        assert_eq!(script.run.len(), 1);
-        assert_eq!(script.run[0], "echo hello");
-    }
-
-    #[test]
-    fn parse_valid_scripts_toml() {
-        let scripts: Scripts = toml::from_str(valid_toml()).unwrap();
-        assert!(scripts.contains_key("build"));
-        assert!(scripts.contains_key("test"));
-        assert!(scripts.contains_key("empty"));
-    }
-
-    #[test]
-    fn parse_script_commands_are_correct() {
-        let scripts: Scripts = toml::from_str(valid_toml()).unwrap();
-        let build = scripts.get("build").unwrap();
-        assert_eq!(build.run.len(), 2);
-        assert_eq!(build.run[0], "echo building");
-        assert_eq!(build.run[1], "echo done");
-    }
-
-    #[test]
-    fn parse_empty_run_array() {
-        let scripts: Scripts = toml::from_str(valid_toml()).unwrap();
-        assert_eq!(scripts.get("empty").unwrap().run.len(), 0);
-    }
-
-    #[test]
-    fn parse_invalid_toml_returns_error() {
-        let result: Result<Scripts, _> = toml::from_str("{ not valid toml");
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn parse_wrong_schema_missing_run_field() {
-        let result: Result<Scripts, _> = toml::from_str(
-            r#"
-[build]
-commands = ["echo hi"]
-"#,
-        );
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn parse_empty_toml_object() {
-        let scripts: Scripts = toml::from_str("").unwrap();
-        assert!(scripts.is_empty());
-    }
-
-    #[test]
-    fn parse_script_with_cd_command() {
-        let scripts: Scripts = toml::from_str(
-            r#"
-[setup]
-run = ["cd /tmp", "echo hello"]
-"#,
-        )
-        .unwrap();
-        assert_eq!(scripts.get("setup").unwrap().run[0], "cd /tmp");
-    }
-
-    #[test]
-    fn script_lookup_existing_key() {
-        let scripts: Scripts = toml::from_str(valid_toml()).unwrap();
-        assert!(scripts.get("build").is_some());
-    }
-
-    #[test]
-    fn script_lookup_missing_key() {
-        let scripts: Scripts = toml::from_str(valid_toml()).unwrap();
-        assert!(scripts.get("nonexistent").is_none());
-    }
-
-    #[test]
-    fn script_lookup_case_sensitive() {
-        let scripts: Scripts = toml::from_str(valid_toml()).unwrap();
-        assert!(scripts.get("Build").is_none());
-        assert!(scripts.get("build").is_some());
-    }
-
-    #[test]
-    fn script_chaining_target_exists() {
+    fn nested_script_target_exists() {
         let scripts: Scripts = toml::from_str(
             r#"
 [build]
@@ -166,13 +123,12 @@ run = ["echo setting up"]
 "#,
         )
         .unwrap();
-        let build = scripts.get("build").unwrap();
-        let chain_target = &build.run[0]["xeq://".len()..];
-        assert!(scripts.get(chain_target).is_some());
+        let target = &scripts["build"].run[0]["xeq://".len()..];
+        assert!(scripts.contains_key(target));
     }
 
     #[test]
-    fn script_chaining_target_missing() {
+    fn nested_script_target_missing() {
         let scripts: Scripts = toml::from_str(
             r#"
 [build]
@@ -180,21 +136,29 @@ run = ["xeq://nonexistent"]
 "#,
         )
         .unwrap();
-        let build = scripts.get("build").unwrap();
-        let chain_target = &build.run[0]["xeq://".len()..];
-        assert!(scripts.get(chain_target).is_none());
+        let target = &scripts["build"].run[0]["xeq://".len()..];
+        assert!(!scripts.contains_key(target));
     }
 
     #[test]
-    fn xeq_chaining_target_missing() {
+    fn script_with_all_fields_parses() {
         let scripts: Scripts = toml::from_str(
             r#"
-[build]
-run = ["xeq://nonexistent"]
+[deploy]
+description = "Deploy to production"
+parallel_threads = 4
+fallback = "notify"
+dir = "/tmp"
+options = ["quiet", "continue_on_err"]
+vars = { env = "prod" }
+run = ["echo deploying"]
 "#,
         )
         .unwrap();
-        let chain_target = &"xeq://nonexistent"["xeq://".len()..];
-        assert!(scripts.get(chain_target).is_none());
+        let s = scripts.get("deploy").unwrap();
+        assert_eq!(s.description.as_deref(), Some("Deploy to production"));
+        assert_eq!(s.parallel_threads, Some(4));
+        assert_eq!(s.fallback.as_deref(), Some("notify"));
+        assert!(s.vars.as_ref().unwrap().contains_key("env"));
     }
 }

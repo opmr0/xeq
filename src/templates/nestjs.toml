@@ -1,0 +1,52 @@
+[vars]
+pkg_manager = "npm"
+
+[install]
+description = "Install dependencies"
+run = ["{{@pkg_manager}} install"]
+
+[dev]
+description = "Start NestJS dev server with watch"
+run = [
+    "xeq://install",
+    "{{@pkg_manager}} run start:dev",
+]
+
+[build]
+description = "Production build"
+run = [
+    "xeq://install",
+    "{{@pkg_manager}} run build",
+]
+
+[start]
+description = "Start production server"
+run = ["{{@pkg_manager}} run start:prod"]
+
+[test]
+description = "Run unit tests"
+run = ["{{@pkg_manager}} run test"]
+
+[test-e2e]
+description = "Run end-to-end tests"
+run = ["{{@pkg_manager}} run test:e2e"]
+
+[check]
+description = "Lint and test in parallel"
+parallel_threads = 2
+run = [
+    "{{@pkg_manager}} run lint",
+    "{{@pkg_manager}} run test",
+]
+
+[generate]
+description = "Generate a NestJS resource — xeq run generate --args users"
+run = ["{{@pkg_manager}} run nest generate resource {{1}}"]
+
+[migrate]
+description = "Run TypeORM migrations"
+run = ["{{@pkg_manager}} run migration:run"]
+
+[migrate-new]
+description = "Create new migration — xeq run migrate-new --args AddUsersTable"
+run = ["{{@pkg_manager}} run migration:create --name={{1}}"]

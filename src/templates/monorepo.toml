@@ -1,0 +1,51 @@
+[vars]
+pkg_manager = "npm"
+
+[install]
+description = "Install all workspace dependencies"
+run = ["{{@pkg_manager}} install"]
+
+[build-all]
+description = "Build all packages in parallel"
+parallel_threads = 4
+run = [
+    "{{@pkg_manager}} run build --workspace=packages/app",
+    "{{@pkg_manager}} run build --workspace=packages/ui",
+    "{{@pkg_manager}} run build --workspace=packages/utils",
+    "{{@pkg_manager}} run build --workspace=packages/api",
+]
+
+[test-all]
+description = "Test all packages in parallel"
+parallel_threads = 4
+run = [
+    "{{@pkg_manager}} run test --workspace=packages/app",
+    "{{@pkg_manager}} run test --workspace=packages/ui",
+    "{{@pkg_manager}} run test --workspace=packages/utils",
+    "{{@pkg_manager}} run test --workspace=packages/api",
+]
+
+[lint-all]
+description = "Lint all packages in parallel"
+parallel_threads = 4
+run = [
+    "{{@pkg_manager}} run lint --workspace=packages/app",
+    "{{@pkg_manager}} run lint --workspace=packages/ui",
+    "{{@pkg_manager}} run lint --workspace=packages/utils",
+    "{{@pkg_manager}} run lint --workspace=packages/api",
+]
+
+[ci]
+description = "Full CI — lint, test, build in sequence"
+run = [
+    "xeq://lint-all",
+    "xeq://test-all",
+    "xeq://build-all",
+]
+
+[clean]
+description = "Remove all node_modules and dist folders"
+run = [
+    "find . -name 'node_modules' -type d -prune -exec rm -rf {} +",
+    "find . -name 'dist' -type d -prune -exec rm -rf {} +",
+]

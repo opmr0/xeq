@@ -1,0 +1,43 @@
+[vars]
+bin = "my-app"
+
+[check]
+description = "Run all checks in parallel"
+parallel_threads = 4
+run = [
+    "cargo fmt --check",
+    "cargo clippy -- -D warnings",
+    "cargo test",
+    "cargo audit",
+]
+
+[build]
+description = "Build release binary"
+run = [
+    "xeq://check",
+    "cargo build --release",
+]
+fallback = "notify-failure"
+
+[run]
+description = "Run the project"
+run = ["cargo run"]
+
+[test]
+description = "Run tests with output"
+run = ["cargo test -- --nocapture"]
+
+[publish]
+description = "Publish to crates.io"
+run = [
+    "xeq://build",
+    "cargo publish",
+]
+
+[clean]
+description = "Clean build artifacts"
+run = ["cargo clean"]
+
+[notify-failure]
+description = "Fallback — called when build fails"
+run = ["echo build failed"]

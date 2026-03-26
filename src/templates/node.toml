@@ -1,0 +1,39 @@
+[vars]
+pkg_manager = "npm"
+
+[install]
+description = "Install dependencies"
+run = ["{{@pkg_manager}} install"]
+
+[dev]
+description = "Start dev server"
+run = [
+    "xeq://install",
+    "{{@pkg_manager}} run dev",
+]
+
+[build]
+description = "Production build"
+run = [
+    "xeq://install",
+    "{{@pkg_manager}} run build",
+]
+
+[test]
+description = "Run tests"
+run = ["{{@pkg_manager}} run test"]
+
+[check]
+description = "Lint and test in parallel"
+parallel_threads = 2
+run = [
+    "{{@pkg_manager}} run lint",
+    "{{@pkg_manager}} run test",
+]
+
+[clean]
+description = "Remove node_modules and dist"
+run = [
+    "rm -rf node_modules",
+    "rm -rf dist",
+]

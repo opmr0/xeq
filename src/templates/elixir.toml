@@ -1,0 +1,53 @@
+[vars]
+mix = "mix"
+
+[setup]
+description = "Install deps and set up database"
+run = [
+    "{{@mix}} deps.get",
+    "{{@mix}} ecto.setup",
+]
+
+[dev]
+description = "Start Phoenix dev server"
+run = ["{{@mix}} phx.server"]
+
+[test]
+description = "Run test suite"
+run = ["{{@mix}} test"]
+
+[check]
+description = "Format check, credo and tests in parallel"
+parallel_threads = 3
+run = [
+    "{{@mix}} format --check-formatted",
+    "{{@mix}} credo",
+    "{{@mix}} test",
+]
+
+[format]
+description = "Auto-format all Elixir files"
+run = ["{{@mix}} format"]
+
+[migrate]
+description = "Run Ecto migrations"
+run = ["{{@mix}} ecto.migrate"]
+
+[rollback]
+description = "Rollback last migration"
+run = ["{{@mix}} ecto.rollback"]
+
+[reset]
+description = "Drop, recreate and migrate database"
+run = ["{{@mix}} ecto.reset"]
+
+[release]
+description = "Build a production release"
+run = [
+    "xeq://check",
+    "MIX_ENV=prod {{@mix}} release",
+]
+
+[clean]
+description = "Clean build artifacts"
+run = ["{{@mix}} clean"]

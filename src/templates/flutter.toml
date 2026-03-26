@@ -1,0 +1,51 @@
+[vars]
+flavor = "production"
+
+[install]
+description = "Get Flutter dependencies"
+run = ["flutter pub get"]
+
+[dev]
+description = "Run app in debug mode"
+run = [
+    "xeq://install",
+    "flutter run",
+]
+
+[build-android]
+description = "Build Android APK"
+run = [
+    "xeq://install",
+    "flutter build apk --flavor {{@flavor}}",
+]
+
+[build-ios]
+description = "Build iOS release"
+run = [
+    "xeq://install",
+    "flutter build ios --release --no-codesign",
+]
+
+[build-all]
+description = "Build Android and iOS in parallel"
+parallel_threads = 2
+run = [
+    "flutter build apk --flavor {{@flavor}}",
+    "flutter build ios --release --no-codesign",
+]
+
+[test]
+description = "Run all tests"
+run = ["flutter test"]
+
+[analyze]
+description = "Analyze and test in parallel"
+parallel_threads = 2
+run = [
+    "flutter analyze",
+    "flutter test",
+]
+
+[clean]
+description = "Clean build artifacts"
+run = ["flutter clean"]

@@ -1,6 +1,6 @@
 [package]
 name = "xeq"
-version = "3.0.0"
+version = "2.2.0"
 edition = "2021"
 description = "xeq is a cross-platform CLI tool that runs sequences of commands from a single TOML file, making repetitive tasks fast and consistent."
 license = "MIT"
@@ -11,6 +11,7 @@ categories = ["command-line-utilities", "development-tools", "config"]
 
 
 [dependencies]
+anyhow = "1.0.102"
 clap = { version = "4.6.0", features = ["derive"] }
 clearscreen = "4.0.6"
 colored = "3.1.1"

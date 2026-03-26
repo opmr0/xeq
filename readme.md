@@ -34,6 +34,7 @@ Every project has a setup ritual. Ten commands, always in the same order, run ev
   - [7. Global Configuration](#7-global-configuration)
   - [8. Run Summary](#8-run-summary)
   - [9. Fallback script](#9-fallback-script)
+  - [10. Custom shells](#10-custom-shells)
 - [Examples](#examples)
 - [How It Works](#how-it-works)
 - [Contributing](#contributing)
@@ -113,8 +114,14 @@ xeq finds `xeq.toml` in the current directory automatically. No extra setup need
 Creates a starter `xeq.toml` in the current directory. Will not overwrite an existing file.
 
 ```bash
-xeq init
+xeq init [template]
 ```
+
+You can chose a template to start with
+
+##### Available templates
+
+`android`, `ansible`, `astro`, `aws`, `bun`, `deno`, `django`, `docker`, `dotnet`, `elixir`, `expo`, `fastapi`, `flutter`, `git`, `go`,`hugo` ,`java-gradle`,`java-maven`, `kubernetes`, `laravel`, `monorepo`, `nestjs`, `nextjs`, `node`, `python`, `rails`,`react`, `rust`, `svelte`, `tauri`
 
 ---
 
@@ -156,6 +163,38 @@ xeq list --global
 ```
 
 ---
+### `xeq toml`
+
+Shows how the TOML format should be
+
+```
+Fields for the whole file
+
+shell   Optional - Set the shell to run the command with, windows default: cmd, Linux/MacOS default: sh
+Supported shells: sh, zsh, fish, bash, cmd, powershell
+
+[vars]          Set variables for the file level
+var_name = "value"
+
+Fields for the single script
+
+run     Required - a group of commands to run
+
+options  Optional - Set a group of options for the script
+Available options: continue_on_err, allow_recursion, allow_empty_vars, clear, quite, summary
+
+dir     Optional - Set the directory where the commands will run in
+
+description     Optional - Set a description for the script
+
+parallel_threads        Optional - Enable parallel execution and set a number of threads for the execution
+
+fallback        Optional - Set a fallback for another script if the current script failed
+
+vars.var_name    Set a variable for the script level
+```
+
+---
 
 ### `xeq validate`
 
@@ -173,6 +212,7 @@ Catches:
 - Undefined `{{@vars}}` not defined in vars. see [Variables](#2-variables)
 - Circular dependencies between scripts
 - `fallback` and `continue_on_err` set on the same script. see [Fallback script](#9-fallback-script)
+- unsupported shells in the shell value. see [Custom Shells](#10-custom-shells)
 - `dir` paths that don't exist
 - parallel_thread filed equals 0 or 1
 
@@ -456,6 +496,24 @@ The fallback script receives the same `--args` that were passed to the original 
 > **Note:** `fallback` and `continue_on_err` cannot be used together on the same script. xeq will exit with an error if both are set.
 
 ---
+
+## 10. Custom shells
+
+Set a shell to run your command with per file
+
+```toml
+shell = "zsh"
+
+[build]
+run = [
+    "cargo build",
+    "cargo test",
+]
+```
+
+Available shells: `sh`,`bash`,`zsh`,`cmd`,`powershell`,`fish`
+
+When the shell value isn't supported xeq will return an err
 
 ## Examples
 

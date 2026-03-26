@@ -1,0 +1,42 @@
+[vars]
+bin = "my-app"
+
+[check]
+description = "Format, vet and test in parallel"
+parallel_threads = 3
+run = [
+    "gofmt -l .",
+    "go vet ./...",
+    "go test ./...",
+]
+
+[build]
+description = "Build binary"
+run = [
+    "xeq://check",
+    "go build -o {{@bin}} .",
+]
+
+[run]
+description = "Run the project"
+run = ["go run ."]
+
+[cross-compile]
+description = "Cross-compile for Linux, macOS and Windows in parallel"
+parallel_threads = 3
+run = [
+    "GOOS=linux   GOARCH=amd64 go build -o dist/{{@bin}}-linux   .",
+    "GOOS=darwin  GOARCH=amd64 go build -o dist/{{@bin}}-darwin  .",
+    "GOOS=windows GOARCH=amd64 go build -o dist/{{@bin}}-windows.exe .",
+]
+
+[tidy]
+description = "Tidy go modules"
+run = ["go mod tidy"]
+
+[clean]
+description = "Remove build artifacts"
+run = [
+    "rm -f {{@bin}}",
+    "rm -rf dist",
+]

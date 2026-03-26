@@ -1,0 +1,47 @@
+[vars]
+java = "java"
+mvn = "./mvnw"
+
+[install]
+description = "Install dependencies"
+run = ["{{@mvn}} install -DskipTests"]
+
+[dev]
+description = "Run Spring Boot dev server"
+run = ["{{@mvn}} spring-boot:run"]
+
+[build]
+description = "Build JAR"
+run = [
+    "xeq://test",
+    "{{@mvn}} package",
+]
+
+[test]
+description = "Run test suite"
+run = ["{{@mvn}} test"]
+
+[check]
+description = "Checkstyle and tests in parallel"
+parallel_threads = 2
+run = [
+    "{{@mvn}} checkstyle:check",
+    "{{@mvn}} test",
+]
+
+[clean]
+description = "Clean build artifacts"
+run = ["{{@mvn}} clean"]
+
+[release]
+description = "Clean, test and package"
+run = [
+    "{{@mvn}} clean",
+    "xeq://test",
+    "{{@mvn}} package",
+]
+fallback = "notify-failure"
+
+[notify-failure]
+description = "Fallback — called when release fails"
+run = ["echo maven build failed"]

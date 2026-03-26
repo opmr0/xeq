@@ -1,0 +1,41 @@
+[vars]
+pkg_manager = "npm"
+
+[install]
+description = "Install frontend dependencies"
+run = ["{{@pkg_manager}} install"]
+
+[dev]
+description = "Start Tauri dev window"
+run = [
+    "xeq://install",
+    "{{@pkg_manager}} run tauri dev",
+]
+
+[build]
+description = "Build Tauri app for production"
+run = [
+    "xeq://install",
+    "{{@pkg_manager}} run tauri build",
+]
+
+[check]
+description = "Check Rust and frontend in parallel"
+parallel_threads = 2
+run = [
+    "cargo clippy -- -D warnings",
+    "{{@pkg_manager}} run lint",
+]
+
+[test]
+description = "Run Rust tests"
+run = ["cargo test"]
+
+[clean]
+description = "Clean all build artifacts"
+run = [
+    "cargo clean",
+    "rm -rf node_modules",
+    "rm -rf dist",
+    "rm -rf src-tauri/target",
+]

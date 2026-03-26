@@ -1,0 +1,42 @@
+[vars]
+venv = ".venv"
+python = "python3"
+
+[setup]
+description = "Create virtualenv and install deps"
+run = [
+    "{{@python}} -m venv {{@venv}}",
+    "{{@venv}}/bin/pip install -e .[dev]",
+]
+
+[check]
+description = "Lint, type-check and test in parallel"
+parallel_threads = 3
+run = [
+    "{{@venv}}/bin/ruff check .",
+    "{{@venv}}/bin/mypy .",
+    "{{@venv}}/bin/pytest --tb=short",
+]
+
+[test]
+description = "Run tests"
+run = ["{{@venv}}/bin/pytest"]
+
+[format]
+description = "Format code"
+run = ["{{@venv}}/bin/ruff format ."]
+
+[publish]
+description = "Build and publish to PyPI"
+run = [
+    "{{@venv}}/bin/python -m build",
+    "{{@venv}}/bin/twine upload dist/*",
+]
+
+[clean]
+description = "Remove venv and build artifacts"
+run = [
+    "rm -rf {{@venv}}",
+    "rm -rf dist",
+    "rm -rf *.egg-info",
+]

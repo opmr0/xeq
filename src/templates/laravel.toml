@@ -1,0 +1,54 @@
+[vars]
+php = "php"
+
+[install]
+description = "Install PHP and JS dependencies"
+run = [
+    "composer install",
+    "npm install",
+]
+
+[dev]
+description = "Start Laravel dev server and Vite in parallel"
+parallel_threads = 2
+run = [
+    "{{@php}} artisan serve",
+    "npm run dev",
+]
+
+[build]
+description = "Build frontend assets"
+run = ["npm run build"]
+
+[migrate]
+description = "Run database migrations"
+run = ["{{@php}} artisan migrate"]
+
+[migrate-fresh]
+description = "Drop all tables and re-run migrations"
+run = ["{{@php}} artisan migrate:fresh --seed"]
+
+[test]
+description = "Run PHPUnit tests"
+run = ["{{@php}} artisan test"]
+
+[cache-clear]
+description = "Clear all caches"
+run = [
+    "{{@php}} artisan cache:clear",
+    "{{@php}} artisan config:clear",
+    "{{@php}} artisan route:clear",
+    "{{@php}} artisan view:clear",
+]
+
+[optimize]
+description = "Cache config, routes and views for production"
+run = [
+    "{{@php}} artisan config:cache",
+    "{{@php}} artisan route:cache",
+    "{{@php}} artisan view:cache",
+]
+
+[queue]
+description = "Start queue worker"
+run = ["{{@php}} artisan queue:work"]

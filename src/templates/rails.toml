@@ -1,0 +1,53 @@
+[vars]
+ruby = "bundle exec"
+
+[setup]
+description = "Install gems and set up database"
+run = [
+    "bundle install",
+    "{{@ruby}} rails db:setup",
+]
+
+[dev]
+description = "Start Rails dev server"
+run = ["{{@ruby}} rails server"]
+
+[test]
+description = "Run test suite"
+run = ["{{@ruby}} rspec"]
+
+[check]
+description = "Lint and test in parallel"
+parallel_threads = 2
+run = [
+    "{{@ruby}} rubocop",
+    "{{@ruby}} rspec",
+]
+
+[migrate]
+description = "Run database migrations"
+run = ["{{@ruby}} rails db:migrate"]
+
+[rollback]
+description = "Rollback last migration"
+run = ["{{@ruby}} rails db:rollback"]
+
+[seed]
+description = "Seed the database"
+run = ["{{@ruby}} rails db:seed"]
+
+[reset]
+description = "Drop, recreate and seed database"
+run = ["{{@ruby}} rails db:reset"]
+
+[console]
+description = "Open Rails console"
+run = ["{{@ruby}} rails console"]
+
+[routes]
+description = "Print all routes"
+run = ["{{@ruby}} rails routes"]
+
+[assets]
+description = "Precompile assets for production"
+run = ["{{@ruby}} rails assets:precompile"]

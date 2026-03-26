@@ -1,0 +1,46 @@
+[vars]
+env = "staging"
+region = "us-east-1"
+
+[init]
+description = "Initialize Terraform"
+run = ["terraform init"]
+
+[plan]
+description = "Preview infrastructure changes"
+run = [
+    "xeq://init",
+    "terraform plan -var='env={{@env}}' -var='region={{@region}}'",
+]
+
+[apply]
+description = "Apply infrastructure changes"
+run = [
+    "xeq://plan",
+    "terraform apply -auto-approve -var='env={{@env}}' -var='region={{@region}}'",
+]
+fallback = "notify-failure"
+
+[destroy]
+description = "Destroy all infrastructure"
+run = ["terraform destroy -auto-approve -var='env={{@env}}'"]
+
+[validate]
+description = "Validate and format check in parallel"
+parallel_threads = 2
+run = [
+    "terraform validate",
+    "terraform fmt -check",
+]
+
+[format]
+description = "Auto-format all Terraform files"
+run = ["terraform fmt -recursive"]
+
+[output]
+description = "Show all outputs"
+run = ["terraform output"]
+
+[notify-failure]
+description = "Fallback — called when apply fails"
+run = ["echo terraform apply failed in {{@env}}"]

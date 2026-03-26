@@ -1,0 +1,46 @@
+[vars]
+image = "my-app"
+tag = "latest"
+registry = "docker.io/myusername"
+port = "8080"
+
+[build]
+description = "Build Docker image"
+run = ["docker build -t {{@image}}:{{@tag}} ."]
+
+[run]
+description = "Run container locally"
+run = ["docker run --rm -p {{@port}}:{{@port}} {{@image}}:{{@tag}}"]
+
+[push]
+description = "Tag and push to registry"
+run = [
+    "docker tag {{@image}}:{{@tag}} {{@registry}}/{{@image}}:{{@tag}}",
+    "docker push {{@registry}}/{{@image}}:{{@tag}}",
+]
+
+[deploy]
+description = "Build and push"
+run = [
+    "xeq://build",
+    "xeq://push",
+]
+
+[compose-up]
+description = "Start services with docker compose"
+run = ["docker compose up -d"]
+
+[compose-down]
+description = "Stop services"
+run = ["docker compose down"]
+
+[logs]
+description = "Follow container logs"
+run = ["docker compose logs -f"]
+
+[clean]
+description = "Remove image and dangling layers"
+run = [
+    "docker rmi {{@image}}:{{@tag}}",
+    "docker image prune -f",
+]

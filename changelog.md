@@ -4,6 +4,14 @@ All notable changes to xeq will be documented here.
 
 ---
 
+## 2.2.0 - 2026-03-26
+
+### Added
+
+- add `xeq toml` command to view the toml format
+- templates for `xeq init <templates>`
+- shell field per file to chose witch shell to use from sh, zsh, bash, fish, cmd or powershell and the default for windows is cmd and for any other OS is sh
+
 ## 2.1.0 - 2026-03-25
 
 ## Added

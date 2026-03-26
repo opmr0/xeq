@@ -1,0 +1,37 @@
+[vars]
+gradle = "./gradlew"
+
+[build]
+description = "Build the project"
+run = [
+    "xeq://test",
+    "{{@gradle}} build",
+]
+
+[dev]
+description = "Run Spring Boot dev server"
+run = ["{{@gradle}} bootRun"]
+
+[test]
+description = "Run test suite"
+run = ["{{@gradle}} test"]
+
+[check]
+description = "Lint and test in parallel"
+parallel_threads = 2
+run = [
+    "{{@gradle}} checkstyleMain",
+    "{{@gradle}} test",
+]
+
+[jar]
+description = "Build executable JAR"
+run = ["{{@gradle}} bootJar"]
+
+[clean]
+description = "Clean build artifacts"
+run = ["{{@gradle}} clean"]
+
+[dependencies]
+description = "Print dependency tree"
+run = ["{{@gradle}} dependencies"]

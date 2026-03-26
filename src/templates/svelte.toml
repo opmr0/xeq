@@ -1,0 +1,51 @@
+[vars]
+pkg_manager = "npm"
+
+[install]
+description = "Install dependencies"
+run = ["{{@pkg_manager}} install"]
+
+[dev]
+description = "Start SvelteKit dev server"
+run = [
+    "xeq://install",
+    "{{@pkg_manager}} run dev",
+]
+
+[build]
+description = "Production build"
+run = [
+    "xeq://install",
+    "{{@pkg_manager}} run build",
+]
+
+[preview]
+description = "Preview production build"
+run = [
+    "xeq://build",
+    "{{@pkg_manager}} run preview",
+]
+
+[check]
+description = "Type-check and lint in parallel"
+parallel_threads = 2
+run = [
+    "{{@pkg_manager}} run check",
+    "{{@pkg_manager}} run lint",
+]
+
+[test]
+description = "Run Vitest tests"
+run = ["{{@pkg_manager}} run test"]
+
+[format]
+description = "Format with Prettier"
+run = ["{{@pkg_manager}} run format"]
+
+[clean]
+description = "Remove node_modules and build output"
+run = [
+    "rm -rf node_modules",
+    "rm -rf .svelte-kit",
+    "rm -rf build",
+]

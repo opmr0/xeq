@@ -1,0 +1,45 @@
+[vars]
+namespace = "default"
+context = "my-cluster"
+manifest_dir = "./k8s"
+
+[apply]
+description = "Apply all manifests"
+run = ["kubectl apply -f {{@manifest_dir}} --namespace {{@namespace}}"]
+
+[delete]
+description = "Delete all resources from manifests"
+run = ["kubectl delete -f {{@manifest_dir}} --namespace {{@namespace}}"]
+
+[status]
+description = "Show pods, services and deployments in parallel"
+parallel_threads = 3
+run = [
+    "kubectl get pods      --namespace {{@namespace}}",
+    "kubectl get services  --namespace {{@namespace}}",
+    "kubectl get deployments --namespace {{@namespace}}",
+]
+
+[logs]
+description = "Tail logs for a pod — xeq run logs --args my-pod"
+run = ["kubectl logs -f {{1}} --namespace {{@namespace}}"]
+
+[exec]
+description = "Shell into a pod — xeq run exec --args my-pod"
+run = ["kubectl exec -it {{1}} --namespace {{@namespace}} -- /bin/sh"]
+
+[rollout-restart]
+description = "Rolling restart a deployment — xeq run rollout-restart --args my-deployment"
+run = ["kubectl rollout restart deployment/{{1}} --namespace {{@namespace}}"]
+
+[rollout-status]
+description = "Watch rollout status — xeq run rollout-status --args my-deployment"
+run = ["kubectl rollout status deployment/{{1}} --namespace {{@namespace}}"]
+
+[scale]
+description = "Scale a deployment — xeq run scale --args my-deployment 3"
+run = ["kubectl scale deployment/{{1}} --replicas={{2}} --namespace {{@namespace}}"]
+
+[port-forward]
+description = "Port forward a service — xeq run port-forward --args my-service 8080 80"
+run = ["kubectl port-forward service/{{1}} {{2}}:{{3}} --namespace {{@namespace}}"]

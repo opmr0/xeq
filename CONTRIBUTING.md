@@ -32,6 +32,8 @@ src/
   types.rs      # Shared types (Script, Scripts, Config, SavedPath)
   macros.rs     # log! and err! macros
   validation.rs # Validation functions for `xeq validate`
+  templates.rs  # for importing templates from /templates
+  /templates    # templates for `xeq init <template>`
 examples/       # Ready-to-use TOML files
 ```
 

@@ -1,0 +1,32 @@
+[vars]
+base_url = "https://example.com"
+port = "1313"
+
+[dev]
+description = "Start Hugo dev server with drafts"
+run = ["hugo server -D --port {{@port}}"]
+
+[build]
+description = "Build static site"
+run = ["hugo --minify --baseURL {{@base_url}}"]
+
+[new-post]
+description = "Create a new post — xeq run new-post --args posts/my-post.md"
+run = ["hugo new {{1}}"]
+
+[check]
+description = "Check for broken links"
+run = ["hugo --printPathWarnings"]
+
+[deploy-gh-pages]
+description = "Build and deploy to GitHub Pages"
+run = [
+    "xeq://build",
+    "git add public",
+    "git commit -m 'deploy'",
+    "git subtree push --prefix public origin gh-pages",
+]
+
+[clean]
+description = "Remove generated public folder"
+run = ["rm -rf public"]

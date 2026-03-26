@@ -1,0 +1,53 @@
+[vars]
+venv = ".venv"
+python = "python3"
+manage = ".venv/bin/python manage.py"
+
+[setup]
+description = "Create virtualenv and install deps"
+run = [
+    "{{@python}} -m venv {{@venv}}",
+    "{{@venv}}/bin/pip install -r requirements.txt",
+]
+
+[dev]
+description = "Run Django dev server"
+run = [
+    "xeq://migrate",
+    "{{@manage}} runserver",
+]
+
+[migrate]
+description = "Run database migrations"
+run = [
+    "{{@manage}} makemigrations",
+    "{{@manage}} migrate",
+]
+
+[test]
+description = "Run test suite"
+run = ["{{@manage}} test"]
+
+[shell]
+description = "Open Django shell"
+run = ["{{@manage}} shell"]
+
+[check]
+description = "Run Django system checks"
+run = ["{{@manage}} check"]
+
+[static]
+description = "Collect static files"
+run = ["{{@manage}} collectstatic --noinput"]
+
+[superuser]
+description = "Create a superuser"
+run = ["{{@manage}} createsuperuser"]
+
+[clean]
+description = "Remove venv and cached files"
+run = [
+    "rm -rf {{@venv}}",
+    "find . -type d -name __pycache__ -exec rm -rf {} +",
+    "find . -name '*.pyc' -delete",
+]

@@ -3,21 +3,6 @@ options = ["continue_on_err","summary"]
 run = [
     "cargo check",
     "cargo test",
-    "cargo clippy",
-    "cargo fmt"
-]
-
-[test]
-run = [
-    "echo x",
-    "echo y",
-    "echo z",
-]
-
-[test2]
-fallback = "test"
-run = [
-    "echo z",
-    "false",
-    "echo x",
+    "cargo clippy -- -D warnings",
+    "cargo fmt",
 ]

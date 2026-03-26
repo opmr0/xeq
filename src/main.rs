@@ -1,26 +1,30 @@
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::fs::File;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::process;
 
 #[macro_use]
 mod macros;
 mod config;
 mod runner;
+mod templates;
 mod types;
 mod validation;
 
 use config::{load_path, read_scripts, save_path, validate_path};
 use runner::{run, RunOptions};
-
-use crate::validation::validate;
+use templates::get_template;
+use validation::validate;
 
 #[derive(Parser, Debug)]
 #[clap(
     version,
-    about = "xeq is a cross-platform CLI tool that runs sequences of commands from a single TOML file, making repetitive tasks fast and consistent.",
-    name = "xeq"
+    name = "xeq",
+    about = "xeq runs sequences of commands from a single TOML file, making repetitive tasks fast and consistent."
 )]
 struct Cli {
     #[clap(subcommand)]
@@ -29,31 +33,24 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    #[command(alias = "c", about = "Set or open the path to your xeq configuration")]
+    #[command(alias = "c", about = "Set or open the path to your xeq config file")]
     Config {
-        #[arg(
-            value_name = "PATH",
-            help = "Path to a custom xeq.toml file (optional)"
-        )]
+        #[arg(value_name = "PATH", help = "Path to a xeq.toml file (optional)")]
         path: Option<PathBuf>,
     },
 
     #[command(alias = "r", about = "Run a named script from your xeq.toml")]
     Run {
-        #[arg(value_name = "SCRIPT_NAME", help = "The name of the script to execute")]
+        #[arg(value_name = "SCRIPT_NAME", help = "Name of the script to run")]
         script_name: String,
 
-        #[arg(
-            short = 'C',
-            long,
-            help = "Continue running remaining commands even if one fails"
-        )]
+        #[arg(short = 'C', long, help = "Keep running even if a command fails")]
         continue_on_err: bool,
 
-        #[arg(short, long, help = "Clear the terminal before executing each command")]
+        #[arg(short, long, help = "Clear the terminal before each command")]
         clear: bool,
 
-        #[arg(short, long, help = "Suppress xeq output and only show command output")]
+        #[arg(short, long, help = "Hide xeq log lines, only show command output")]
         quiet: bool,
 
         #[arg(
@@ -61,53 +58,46 @@ enum Command {
             long,
             value_name = "THREADS",
             num_args = 0..=1,
-            help = "Run all commands in the script in parallel"
+            help = "Run all commands in parallel (optionally set thread count)"
         )]
         parallel: Option<usize>,
 
-        #[arg(
-            long,
-            help = "Allow a script to call itself (for intentional recursion)"
-        )]
+        #[arg(long, help = "Allow a script to call itself")]
         allow_recursion: bool,
 
         #[arg(
-            long,
             short,
-            help = "Use the global configuration file instead of the local one"
+            long,
+            help = "Use the globally saved xeq.toml instead of the local one"
         )]
         global: bool,
 
-        #[arg(long, help = "Skip loading environment variables from a .env file")]
+        #[arg(long, help = "Skip loading .env from the current directory")]
         no_env: bool,
 
-        #[arg(
-            long,
-            short,
-            help = "Display a summary of commands and execution times after the script finishes"
-        )]
+        #[arg(short, long, help = "Print a timing summary after the script finishes")]
         summary: bool,
 
         #[arg(
-            long,
             short = 'A',
-            help = "Allow scripts to run even if some arguments or variables are missing"
+            long,
+            help = "Allow scripts to run even if some variables or arguments are missing"
         )]
         allow_empty_vars: bool,
 
-        #[arg(short, long, num_args = 1.., value_name = "VALUES", help = "Pass arguments or variables to the script at runtime")]
+        #[arg(short, long, num_args = 1.., value_name = "VALUES", help = "Pass arguments or variables to the script")]
         args: Option<Vec<String>>,
     },
 
     #[command(
         alias = "l",
-        about = "List all available scripts in the current or global xeq.toml"
+        about = "List all scripts in the current or global xeq.toml"
     )]
     List {
         #[arg(
-            long,
             short,
-            help = "Show scripts from the global configuration instead of the local one"
+            long,
+            help = "List from the global config instead of the local one"
         )]
         global: bool,
     },
@@ -116,62 +106,58 @@ enum Command {
         alias = "i",
         about = "Create a starter xeq.toml in the current directory"
     )]
-    Init,
+    Init {
+        template: Option<String>,
+    },
 
-    #[command(alias = "v", about = "Validate your scripts without running them")]
+    #[command(
+        alias = "v",
+        about = "Check your scripts for errors without running them"
+    )]
     Validate {
         #[arg(
-            long,
             short,
-            help = "Validate scripts in the global configuration instead of the local one"
+            long,
+            help = "Validate the global config instead of the local one"
         )]
         global: bool,
     },
+    Toml,
 }
 
 fn validate_or_exit() {
     if let Some(path) = load_path() {
         if validate_path(&path).is_err() {
             err!(
-                "The commands TOML file has been deleted or moved.\nConfigure xeq using: xeq config <path/to/file.toml>"
+                "The config file has been deleted or moved.\nConfigure xeq using: xeq config <path/to/file.toml>"
             );
             process::exit(1);
         }
     }
 }
 
+fn load_config_or_exit(global: bool) -> types::Config {
+    match read_scripts(global) {
+        Ok(c) => c,
+        Err(e) => {
+            err!("{}", e);
+            process::exit(1);
+        }
+    }
+}
+
 fn main() {
+    if let Err(e) = run_cli() {
+        err!("{:?}", e);
+        process::exit(1);
+    }
+}
+
+fn run_cli() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Command::Config { path } => {
-            if let Some(path) = path {
-                if let Err(e) = save_path(path) {
-                    err!("{}", e);
-                } else {
-                    println!(
-                        "{} {}",
-                        "[xeq]".cyan().bold(),
-                        "Configuration saved successfully!".green()
-                    );
-                }
-            } else {
-                validate_or_exit();
-                let path = match load_path() {
-                    Some(x) => x,
-                    None => {
-                        err!(
-                            "xeq is not configured.\n      Configure it using: xeq config <path/to/file.toml>"
-                        );
-                        process::exit(1);
-                    }
-                };
-                if let Err(e) = open::that(&path) {
-                    err!("Failed to open {}: {}", path.display(), e);
-                }
-            }
-        }
-
+        Command::Config { path } => cmd_config(path)?,
         Command::Run {
             script_name,
             continue_on_err,
@@ -185,115 +171,171 @@ fn main() {
             summary,
             allow_empty_vars,
         } => {
-            if global {
-                validate_or_exit()
-            };
-            let mut visited = HashSet::new();
-            let config = match read_scripts(global) {
-                Ok(x) => x,
-                Err(e) => {
-                    err!("{}", e);
-                    process::exit(1);
-                }
-            };
-
-            if !no_env {
-                dotenvy::dotenv().ok();
-            }
-
-            let opts = RunOptions {
+            cmd_run(
+                script_name,
                 continue_on_err,
-                quiet,
                 clear,
+                quiet,
+                args,
                 parallel,
                 allow_recursion,
+                no_env,
+                global,
                 summary,
                 allow_empty_vars,
-            };
-
-            let cwd = std::env::current_dir().unwrap_or_else(|_| {
-                err!("Warning: could not determine current directory, falling back to '.'");
-                PathBuf::from(".")
-            });
-
-            match run(script_name, &config, &mut visited, args, opts, cwd) {
-                Ok(_) => {}
-                Err(e) => {
-                    err!("{}", e);
-                    process::exit(1);
-                }
-            };
+            )?;
         }
-        Command::List { global } => {
-            if global {
-                validate_or_exit()
-            };
-            log!(
-                false,
-                "scripts in {}:",
-                if global { "global config" } else { "xeq.toml" }
-            );
-            let content = match read_scripts(global) {
-                Ok(x) => x.scripts,
-                Err(e) => {
-                    err!("{}", e);
-                    process::exit(1);
-                }
-            };
-            for s in content {
-                println!(
-                    "{} --- {} \ndir: {} \nruns:",
-                    s.0.cyan().bold(),
-                    s.1.description
-                        .unwrap_or("No description provided".to_owned())
-                        .italic(),
-                    s.1.dir.unwrap_or("None".to_owned()),
-                );
-                for c in s.1.run.iter() {
-                    println!("\t{}", c.yellow())
-                }
-                println!()
-            }
+        Command::List { global } => cmd_list(global),
+        Command::Init { template } => cmd_init(template)?,
+        Command::Validate { global } => cmd_validate(global),
+        Command::Toml => {
+            // ! TEMP
+            println!("Fields for the whole file\n");
+            println!("shell\tOptional - Set the shell to run the command with, windows default: cmd, Linux/MacOS default: sh");
+            println!("Supported shells: sh, zsh, fish, bash, cmd, powershell\n");
+            println!("[vars]\t\tSet variables for the file level\nvar_name = \"value\"\n");
+            println!("Fields for the single script\n");
+            println!("run\tRequired - a group of commands to run\n");
+            println!("options\t Optional - Set a group of options for the script");
+            println!("Available options: continue_on_err, allow_recursion, allow_empty_vars, clear, quite, summary\n");
+            println!("dir\tOptional - Set the directory where the commands will run in\n");
+            println!("description\tOptional - Set a description for the script\n");
+            println!("parallel_threads\tOptional - Enable parallel execution and set a number of threads for the execution\n");
+            println!("fallback\tOptional - Set a fallback for another script if the current script failed\n");
+            println!("vars.var_name\t Set a variable for the script level")
         }
-        Command::Init => {
-            let path = "./xeq.toml";
+    }
 
-            if std::path::Path::new(path).exists() {
-                err!("xeq.toml already exists in this directory");
-                return;
-            }
+    Ok(())
+}
 
-            let content = r#"[setup]
-run = [
-    "echo hello from xeq"
-]
-"#;
+fn cmd_config(path: Option<PathBuf>) -> Result<()> {
+    if let Some(path) = path {
+        save_path(path).context("failed to save config")?;
+        println!(
+            "{} {}",
+            "[xeq]".cyan().bold(),
+            "configuration saved.".green()
+        );
+    } else {
+        validate_or_exit();
+        let path = load_path().ok_or_else(|| {
+            anyhow::anyhow!("xeq is not configured.\n      Run: xeq config <path/to/file.toml>")
+        })?;
+        open::that(&path).with_context(|| format!("failed to open {}", path.display()))?;
+    }
+    Ok(())
+}
 
-            match std::fs::write(path, content) {
-                Ok(_) => log!(false, "created xeq.toml, run 'xeq run setup' to try it"),
-                Err(e) => err!("could not create xeq.toml: {}", e),
-            }
+#[allow(clippy::too_many_arguments)]
+fn cmd_run(
+    script_name: String,
+    continue_on_err: bool,
+    clear: bool,
+    quiet: bool,
+    args: Option<Vec<String>>,
+    parallel: Option<usize>,
+    allow_recursion: bool,
+    no_env: bool,
+    global: bool,
+    summary: bool,
+    allow_empty_vars: bool,
+) -> Result<()> {
+    if global {
+        validate_or_exit();
+    }
+
+    let config = load_config_or_exit(global);
+
+    if !no_env {
+        dotenvy::dotenv().ok();
+    }
+
+    let opts = RunOptions {
+        continue_on_err,
+        quiet,
+        clear,
+        parallel,
+        allow_recursion,
+        summary,
+        allow_empty_vars,
+    };
+
+    let cwd = std::env::current_dir().unwrap_or_else(|_| {
+        err!("could not determine current directory, falling back to '.'");
+        PathBuf::from(".")
+    });
+
+    let mut visited = HashSet::new();
+    run(script_name, &config, &mut visited, args, opts, cwd).unwrap_or_else(|e| {
+        err!("{}", e);
+        process::exit(1);
+    });
+
+    Ok(())
+}
+
+fn cmd_list(global: bool) {
+    if global {
+        validate_or_exit();
+    }
+
+    log!(
+        false,
+        "scripts in {}:",
+        if global { "global config" } else { "xeq.toml" }
+    );
+
+    let config = load_config_or_exit(global);
+
+    for (name, script) in &config.scripts {
+        println!(
+            "{} --- {}\ndir: {}\nruns:",
+            name.cyan().bold(),
+            script
+                .description
+                .as_deref()
+                .unwrap_or("no description")
+                .italic(),
+            script.dir.as_deref().unwrap_or("none"),
+        );
+        for cmd in &script.run {
+            println!("\t{}", cmd.yellow());
         }
-        Command::Validate { global } => {
-            log!(
-                false,
-                "validating scripts in {}:",
-                if global { "global config" } else { "xeq.toml" }
-            );
-            log!(false, "checking parse errors");
-            let config = match read_scripts(global) {
-                Ok(x) => x,
-                Err(e) => {
-                    err!("{}", e);
-                    process::exit(1)
-                }
-            };
-            log!(false, "{} \n", "parsing passed".green());
-            if validate(&config) {
-                err!("some scripts failed")
-            } else {
-                log!(false, "{}", "all scripts passed".green())
-            };
-        }
+        println!();
+    }
+}
+
+fn cmd_init(template: Option<String>) -> Result<()> {
+    if Path::new("xeq.toml").exists() {
+        err!("xeq.toml already exists");
+        return Ok(());
+    }
+
+    let content = get_template(template);
+    let mut file = File::create("xeq.toml").context("failed to create xeq.toml")?;
+    file.write_all(content)
+        .context("failed to write xeq.toml")?;
+    log!(false, "xeq.toml created, edit it then run xeq run <script>");
+    Ok(())
+}
+
+fn cmd_validate(global: bool) {
+    log!(
+        false,
+        "validating scripts in {}:",
+        if global { "global config" } else { "xeq.toml" }
+    );
+    log!(false, "checking for parse errors");
+
+    let config = load_config_or_exit(global);
+
+    log!(false, "{}\n", "parsing passed".green());
+
+    if validate(&config) {
+        err!("some scripts failed validation");
+        process::exit(1);
+    } else {
+        log!(false, "{}", "all scripts passed".green());
     }
 }

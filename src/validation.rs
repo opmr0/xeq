@@ -1,6 +1,6 @@
 use colored::Colorize;
 
-use crate::types::{Config, Scripts};
+use crate::types::{Config, ScriptOption, Scripts};
 
 fn check_recursion(
     name: &str,
@@ -47,11 +47,12 @@ pub fn validate(config: &Config) -> bool {
             &mut has_errs,
             &mut script_has_errs,
         );
+
         if script.fallback.is_some()
             && script
                 .options
                 .as_ref()
-                .is_some_and(|o| o.contains(&crate::types::ScriptOption::ContinueOnErr))
+                .is_some_and(|o| o.contains(&ScriptOption::ContinueOnErr))
         {
             err!(
                 "'{}': fallback and continue_on_err cannot be used together",
@@ -116,8 +117,12 @@ pub fn validate(config: &Config) -> bool {
                     let in_global = config.vars.as_ref().is_some_and(|v| v.contains_key(key));
                     let in_local = script.vars.as_ref().is_some_and(|v| v.contains_key(key));
                     if !in_global && !in_local {
-                        println!("{} '{}': '{{{{@{}}}}}' is not defined in vars, must be passed at runtime with --args",
-                            "[xeq]".yellow().bold(), name, key);
+                        println!(
+                            "{} '{}': '{{{{@{}}}}}' is not defined in vars, must be passed at runtime with --args",
+                            "[xeq]".yellow().bold(),
+                            name,
+                            key
+                        );
                     }
                     i = start + end + 2;
                 } else {
@@ -135,8 +140,146 @@ pub fn validate(config: &Config) -> bool {
                 "passed".green()
             );
         }
-        println!()
+        println!();
     }
 
     has_errs
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{Config, Script, ScriptOption};
+    use std::collections::HashMap;
+
+    fn make_config(scripts: Scripts) -> Config {
+        Config {
+            shell: None,
+            vars: None,
+            scripts,
+        }
+    }
+
+    fn simple_script(run: Vec<&str>) -> Script {
+        Script {
+            description: None,
+            options: None,
+            parallel_threads: None,
+            fallback: None,
+            dir: None,
+            vars: None,
+            run: run.into_iter().map(String::from).collect(),
+        }
+    }
+
+    #[test]
+    fn valid_script_passes() {
+        let mut scripts = HashMap::new();
+        scripts.insert("build".into(), simple_script(vec!["echo hi"]));
+        let config = make_config(scripts);
+        assert!(!validate(&config));
+    }
+
+    #[test]
+    fn missing_nested_script_is_an_error() {
+        let mut scripts = HashMap::new();
+        scripts.insert("build".into(), simple_script(vec!["xeq://nonexistent"]));
+        let config = make_config(scripts);
+        assert!(validate(&config));
+    }
+
+    #[test]
+    fn direct_self_call_is_circular() {
+        let mut scripts = HashMap::new();
+        scripts.insert("build".into(), simple_script(vec!["xeq://build"]));
+        let config = make_config(scripts);
+        assert!(validate(&config));
+    }
+
+    #[test]
+    fn indirect_circular_dependency_is_caught() {
+        let mut scripts = HashMap::new();
+        scripts.insert("a".into(), simple_script(vec!["xeq://b"]));
+        scripts.insert("b".into(), simple_script(vec!["xeq://a"]));
+        let config = make_config(scripts);
+        assert!(validate(&config));
+    }
+
+    #[test]
+    fn linear_chain_passes() {
+        let mut scripts = HashMap::new();
+        scripts.insert("a".into(), simple_script(vec!["xeq://b"]));
+        scripts.insert("b".into(), simple_script(vec!["xeq://c"]));
+        scripts.insert("c".into(), simple_script(vec!["echo done"]));
+        let config = make_config(scripts);
+        assert!(!validate(&config));
+    }
+
+    #[test]
+    fn fallback_and_continue_on_err_together_is_an_error() {
+        let mut scripts = HashMap::new();
+        scripts.insert(
+            "build".into(),
+            Script {
+                fallback: Some("notify".into()),
+                options: Some(vec![ScriptOption::ContinueOnErr]),
+                ..simple_script(vec!["cargo build"])
+            },
+        );
+        scripts.insert("notify".into(), simple_script(vec!["echo failed"]));
+        let config = make_config(scripts);
+        assert!(validate(&config));
+    }
+
+    #[test]
+    fn parallel_threads_of_one_is_an_error() {
+        let mut scripts = HashMap::new();
+        scripts.insert(
+            "check".into(),
+            Script {
+                parallel_threads: Some(1),
+                ..simple_script(vec!["cargo test"])
+            },
+        );
+        let config = make_config(scripts);
+        assert!(validate(&config));
+    }
+
+    #[test]
+    fn parallel_with_cd_is_an_error() {
+        let mut scripts = HashMap::new();
+        scripts.insert(
+            "check".into(),
+            Script {
+                parallel_threads: Some(4),
+                ..simple_script(vec!["cd /tmp", "cargo test"])
+            },
+        );
+        let config = make_config(scripts);
+        assert!(validate(&config));
+    }
+
+    #[test]
+    fn parallel_with_nested_call_is_an_error() {
+        let mut scripts = HashMap::new();
+        scripts.insert(
+            "check".into(),
+            Script {
+                parallel_threads: Some(4),
+                ..simple_script(vec!["xeq://setup", "cargo test"])
+            },
+        );
+        scripts.insert("setup".into(), simple_script(vec!["echo setup"]));
+        let config = make_config(scripts);
+        assert!(validate(&config));
+    }
+
+    #[test]
+    fn valid_nested_call_passes() {
+        let mut scripts = HashMap::new();
+        scripts.insert("deploy".into(), simple_script(vec!["xeq://build"]));
+        scripts.insert("build".into(), simple_script(vec!["cargo build"]));
+        let config = make_config(scripts);
+        assert!(!validate(&config));
+    }
 }

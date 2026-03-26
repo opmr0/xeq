@@ -1,0 +1,55 @@
+[vars]
+main = "main"
+remote = "origin"
+
+[sync]
+description = "Pull latest from main"
+run = [
+    "git checkout {{@main}}",
+    "git pull {{@remote}} {{@main}}",
+]
+
+[branch]
+description = "Create and switch to a new branch — xeq run branch --args my-feature"
+run = [
+    "xeq://sync",
+    "git checkout -b {{1}}",
+]
+
+[save]
+description = "Stage all and commit — xeq run save --args 'my commit message'"
+run = [
+    "git add -A",
+    "git commit -m \"{{1}}\"",
+]
+
+[push]
+description = "Push current branch"
+run = ["git push {{@remote}} HEAD"]
+
+[pr]
+description = "Push and open a pull request"
+run = [
+    "xeq://push",
+    "gh pr create --fill",
+]
+
+[release]
+description = "Tag and push a release — xeq run release --args v1.0.0"
+run = [
+    "xeq://sync",
+    "git tag {{1}}",
+    "git push {{@remote}} {{1}}",
+]
+
+[undo]
+description = "Undo last commit, keep changes staged"
+run = ["git reset --soft HEAD~1"]
+
+[cleanup]
+description = "Delete merged local branches"
+run = ["git branch --merged | grep -v '\\*' | xargs git branch -d"]
+
+[stash]
+description = "Stash current changes"
+run = ["git stash push -m \"{{1}}\""]

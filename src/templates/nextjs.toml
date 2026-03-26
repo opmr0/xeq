@@ -1,0 +1,47 @@
+[vars]
+pkg_manager = "npm"
+
+[install]
+description = "Install dependencies"
+run = ["{{@pkg_manager}} install"]
+
+[dev]
+description = "Start Next.js dev server"
+run = [
+    "xeq://install",
+    "{{@pkg_manager}} run dev",
+]
+
+[build]
+description = "Production build"
+run = [
+    "xeq://install",
+    "{{@pkg_manager}} run build",
+]
+
+[start]
+description = "Start production server"
+run = [
+    "xeq://build",
+    "{{@pkg_manager}} run start",
+]
+
+[lint]
+description = "Run Next.js linter"
+run = ["{{@pkg_manager}} run lint"]
+
+[type-check]
+description = "Run TypeScript type checker"
+run = ["{{@pkg_manager}} run type-check"]
+
+[check]
+description = "Lint and type-check in parallel"
+parallel_threads = 2
+run = [
+    "xeq://lint",
+    "xeq://type-check",
+]
+
+[deploy-vercel]
+description = "Deploy to Vercel production"
+run = ["vercel --prod"]
