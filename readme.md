@@ -15,7 +15,7 @@ Every project has a setup ritual. Ten commands, always in the same order, run ev
 
 ---
 
-<video src="./assets/demo.mp4" width="500" autoplay muted loop></video>
+<video src="https://github.com/opmr0/xeq/raw/refs/heads/main/assets/demo.mp4" width="500" autoplay muted loop></video>
 
 </div>
 
