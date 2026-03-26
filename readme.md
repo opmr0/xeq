@@ -13,14 +13,6 @@
 
 Every project has a setup ritual. Ten commands, always in the same order, run every time. Write them once in a `xeq.toml`, commit it, and anyone on any OS runs the exact same steps with one command.
 
----
-<div align="left">
-
-## Demo 
-</div>
-
-![Demo](./assets/demo.gif)
-
 </div>
 
 ---
