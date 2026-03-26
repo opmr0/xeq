@@ -14,8 +14,12 @@
 Every project has a setup ritual. Ten commands, always in the same order, run every time. Write them once in a `xeq.toml`, commit it, and anyone on any OS runs the exact same steps with one command.
 
 ---
+<div align="left">
 
-<video src="https://github.com/opmr0/xeq/raw/refs/heads/main/assets/demo.mp4" width="500" autoplay muted loop></video>
+## Demo 
+</div>
+
+![Demo](./assets/demo.gif)
 
 </div>
 
