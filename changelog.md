@@ -4,6 +4,19 @@ All notable changes to xeq will be documented here.
 
 ---
 
+## 2.3.0 - 2026-03-28
+
+### Added 
+- `--dry-run` / `-d` flag to preview commands without executing them
+- `on_success` and `on_error` field in the config file (events)
+
+## Changed
+- `fallback` field changed to `on_error`
+- xeq reminds you when the script isn't available in the local config and available in the global config
+- make `xeq toml` command output nicer
+- `allow-empty-vars` flag/option apply to environment variables now (for `{{$ENV}}` syntax) 
+
+
 ## 2.2.1 - 2026-03-26
 
 ### Fixed

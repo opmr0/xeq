@@ -40,8 +40,4 @@ run = [
     "xeq://test",
     "{{@mvn}} package",
 ]
-fallback = "notify-failure"
-
-[notify-failure]
-description = "Fallback — called when release fails"
-run = ["echo maven build failed"]
+on_error = ["echo maven build failed"]

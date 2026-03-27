@@ -1,8 +1,3 @@
 [submit]
-options = ["continue_on_err","summary"]
-run = [
-    "cargo check",
-    "cargo test",
-    "cargo clippy -- -D warnings",
-    "cargo fmt",
-]
+options = ["continue_on_err", "summary"]
+run = ["cargo check", "cargo test", "cargo clippy -- -D warnings", "cargo fmt"]

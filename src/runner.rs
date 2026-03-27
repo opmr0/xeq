@@ -1,4 +1,6 @@
+use crate::config::read_scripts;
 use crate::types::Config;
+use crate::types::Script;
 use crate::types::ScriptOption::*;
 use colored::Colorize;
 use std::collections::HashMap;
@@ -16,6 +18,8 @@ pub struct RunOptions {
     pub allow_recursion: bool,
     pub summary: bool,
     pub allow_empty_vars: bool,
+    pub dry_run: bool,
+    pub no_events: bool,
 }
 
 struct CommandSummary {
@@ -94,7 +98,7 @@ pub fn replace_vars(
     Ok(line)
 }
 
-pub fn replace_env(line: &str) -> Result<String, String> {
+pub fn replace_env(line: &str, allow_empty_vars: bool) -> Result<String, String> {
     let mut line = line.to_owned();
 
     let mut i = 0;
@@ -109,6 +113,7 @@ pub fn replace_env(line: &str) -> Result<String, String> {
 
         let value = match env::var(key) {
             Ok(x) => x,
+            Err(_) if allow_empty_vars => format!("{{{{@{}}}}}", key),
             Err(_) => {
                 err!("environment variable '{{{{${}}}}}' is not set", key);
                 process::exit(1)
@@ -182,12 +187,27 @@ pub fn run(
     let scripts = &config.scripts;
 
     let script = match scripts.get(&script_name) {
+        Some(x) if opts.no_events => &Script {
+            on_error: None,
+            on_success: None,
+            ..x.clone()
+        },
         Some(x) => x,
         None => {
             err!(
                 "script '{}' not found , run 'xeq list' to see available scripts",
                 script_name
             );
+            if let Ok(n) = read_scripts(true) {
+                if n.scripts.contains_key(&script_name) {
+                    log!(
+                        !visited.is_empty(), // Doesn't appear if it was a nested call
+                        "'{}' script exists in the global config, did you mean \"xeq run {} -g\"?",
+                        script_name,
+                        script_name
+                    );
+                }
+            }
             if !opts.continue_on_err {
                 process::exit(1);
             } else {
@@ -195,6 +215,7 @@ pub fn run(
             }
         }
     };
+
     let mut summary: Vec<CommandSummary> = Vec::new();
 
     if let Some(script_options) = &script.options {
@@ -218,8 +239,8 @@ pub fn run(
         }
     }
 
-    if opts.continue_on_err && script.fallback.is_some() {
-        return Err("fallback and continue_on_err cannot be used together".to_string());
+    if (script.on_error.is_some() || script.on_success.is_some()) && opts.continue_on_err {
+        return Err("events and continue_on_err cannot be used together".to_string());
     }
 
     let parallel = match opts.parallel {
@@ -258,7 +279,7 @@ pub fn run(
             opts.allow_empty_vars,
         )?;
         let line = replace_args(&line, &positional_args, opts.allow_empty_vars)?;
-        let line = replace_env(&line)?;
+        let line = replace_env(&line, opts.allow_empty_vars)?;
 
         if parallel.is_some() {
             let has_cd = script.run.iter().any(|l| l.starts_with("cd "));
@@ -304,12 +325,16 @@ pub fn run(
                             err!("{}", e);
                             process::exit(1);
                         });
-                    replace_env(&line).unwrap_or_else(|e| {
+                    replace_env(&line, opts.allow_empty_vars).unwrap_or_else(|e| {
                         err!("{}", e);
                         process::exit(1);
                     })
                 })
                 .collect();
+
+            if opts.dry_run {
+                continue;
+            }
 
             let cwd = cwd.clone();
             let pool = threadpool::ThreadPool::new(n);
@@ -379,6 +404,10 @@ pub fn run(
             log!(opts.quiet, "running nested script '{}'", name.purple());
             run(name.clone(), config, visited, args.clone(), opts, cwd)?;
             visited.remove(&name);
+            continue;
+        }
+
+        if opts.dry_run {
             continue;
         }
 
@@ -544,9 +573,38 @@ pub fn run(
                 line,
                 status.code().unwrap_or(-1)
             );
-            if let Some(s) = &script.fallback {
-                log!(opts.quiet, "{} '{s}'", "falling back to".purple());
-                run(s.clone(), config, visited, args.clone(), opts, cwd)?;
+            if let Some(s) = &script.on_error {
+                log!(
+                    opts.quiet,
+                    "script '{}' failed {}",
+                    script_name,
+                    "running on_error commands".purple()
+                );
+                let temp_uuid_name = uuid::Uuid::new_v4().to_string();
+                let mut scripts = config.scripts.clone();
+                scripts.insert(
+                    temp_uuid_name.clone(),
+                    Script {
+                        run: s.clone(),
+                        on_success: None,
+                        on_error: None,
+                        ..script.clone()
+                    },
+                );
+
+                let temp_config = Config {
+                    scripts,
+                    ..(*config).clone()
+                };
+
+                run(
+                    temp_uuid_name,
+                    &temp_config,
+                    visited,
+                    args.clone(),
+                    opts,
+                    cwd,
+                )?;
                 break;
             } else if !opts.continue_on_err {
                 process::exit(status.code().unwrap_or(1));
@@ -562,14 +620,16 @@ pub fn run(
             });
         }
     }
+    if script.on_error.is_some() || script.on_success.is_some() {
+        log!(
+            opts.quiet,
+            "script '{}' {}",
+            script_name,
+            "completed".green().bold()
+        );
+    }
 
-    log!(
-        opts.quiet,
-        "script '{}' {}",
-        script_name,
-        "completed".green().bold()
-    );
-    if opts.summary {
+    if opts.summary && !opts.dry_run && script.on_error.is_none() && script.on_success.is_none() {
         println!("\n {:<30} time   status", "command");
         println!("{}", "-".repeat(50));
         for CommandSummary {
@@ -621,7 +681,7 @@ mod tests {
     fn replace_env_multiple_vars() {
         std::env::set_var("XEQ_A", "A");
         std::env::set_var("XEQ_B", "B");
-        let result = replace_env("echo {{$XEQ_A}} {{$XEQ_B}}").unwrap();
+        let result = replace_env("echo {{$XEQ_A}} {{$XEQ_B}}", false).unwrap();
         assert_eq!(result, "echo A B");
         std::env::remove_var("XEQ_A");
         std::env::remove_var("XEQ_B");
@@ -679,7 +739,7 @@ mod tests {
 
     #[test]
     fn replace_env_no_placeholders() {
-        let result = replace_env("echo hello").unwrap();
+        let result = replace_env("echo hello", false).unwrap();
         assert_eq!(result, "echo hello");
     }
 

@@ -17,7 +17,7 @@ run = [
     "xeq://check",
     "cargo build --release",
 ]
-fallback = "notify-failure"
+on_error = ["echo build failed"]
 
 [run]
 description = "Run the project"
@@ -38,6 +38,3 @@ run = [
 description = "Clean build artifacts"
 run = ["cargo clean"]
 
-[notify-failure]
-description = "Fallback — called when build fails"
-run = ["echo build failed"]

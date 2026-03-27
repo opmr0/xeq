@@ -33,7 +33,7 @@ Every project has a setup ritual. Ten commands, always in the same order, run ev
   - [6. Parallel Execution](#6-parallel-execution)
   - [7. Global Configuration](#7-global-configuration)
   - [8. Run Summary](#8-run-summary)
-  - [9. Fallback script](#9-fallback-script)
+  - [9. Events](#9-events)
   - [10. Custom shells](#10-custom-shells)
 - [Examples](#examples)
 - [How It Works](#how-it-works)
@@ -147,6 +147,7 @@ xeq run deploy --args env=prod
 | `--args <values...>`       | `-a`  | Pass arguments into the script, positional or `key=value`                                                         |
 | `--global`                 | `-g`  | Use the globally saved path instead of the local `xeq.toml`                                                       |
 | `--summary`                | `-s`  | Print a summary table of commands and execution times after the script finishes                                   |
+| `--dry-run`                | `-d`  | Preview commands without executing them                                                                           |
 | `--allow-empty-args`       | `-A`  | Remove the restrictions on arguments and variables                                                                |
 | `--no-env`                 |       | Skip loading the `.env` file                                                                                      |
 | `--allow-recursion`        |       | Let a script call itself                                                                                          |
@@ -163,35 +164,50 @@ xeq list --global
 ```
 
 ---
+
 ### `xeq toml`
 
 Shows how the TOML format should be
 
 ```
-Fields for the whole file
+xeq toml format
+───────────────────────────────────────────────────────
 
-shell   Optional - Set the shell to run the command with, windows default: cmd, Linux/MacOS default: sh
-Supported shells: sh, zsh, fish, bash, cmd, powershell
+File level fields
+  shell = "bash"         optional - shell to run commands with
+                         supported: sh, zsh, fish, bash, cmd, powershell
+                         default: sh (linux/macos), cmd (windows)
 
-[vars]          Set variables for the file level
-var_name = "value"
+[vars]                   optional - file level variables
+  var_name = "value"
 
-Fields for the single script
+Script fields
+  [script-name]
+  run = ["cmd1", "cmd2"] required - commands to run in order
+  description = "..."    optional - shown in xeq list
+  dir = "./path"         optional - working directory for commands
+  options = ["..."]      optional - baked in flags
+  parallel_threads = 4   optional - enables parallel execution
+  on_success = "script"  optional - script to run on success
+  on_error = "script"    optional - script to run on error
+  vars.var_name = "value"    optional - script level variable
 
-run     Required - a group of commands to run
+Available options
+  quiet                suppress xeq log messages
+  clear                clear terminal before each command
+  continue_on_err      keep running if a command fails
+  allow_recursion      allow a script to call itself
+  summary              print execution summary after run
+  allow_empty_vars     skip errors for undefined variables
 
-options  Optional - Set a group of options for the script
-Available options: continue_on_err, allow_recursion, allow_empty_vars, clear, quite, summary
+Variable types
+  {{@var}}               user defined variable
+  {{$ENV_VAR}}           environment variable
+  {{1}} {{2}}            positional arguments
+  {{snippets.name}}      snippet output
 
-dir     Optional - Set the directory where the commands will run in
-
-description     Optional - Set a description for the script
-
-parallel_threads        Optional - Enable parallel execution and set a number of threads for the execution
-
-fallback        Optional - Set a fallback for another script if the current script failed
-
-vars.var_name    Set a variable for the script level
+───────────────────────────────────────────────────────
+run `xeq init` to create a starter xeq.toml
 ```
 
 ---
@@ -211,10 +227,12 @@ Catches:
 - `parallel` is enabled and there is a `cd` or `xeq://` in the commands. see [Parallel Execution](#6-parallel-execution)
 - Undefined `{{@vars}}` not defined in vars. see [Variables](#2-variables)
 - Circular dependencies between scripts
-- `fallback` and `continue_on_err` set on the same script. see [Fallback script](#9-fallback-script)
+- events and `continue_on_err` set on the same script. see [Events](#9-events)
+- events and `parallel_treads` field (events will be ignored)
+- events and `summary` option (the summary won't be printed)
 - unsupported shells in the shell value. see [Custom Shells](#10-custom-shells)
 - `dir` paths that don't exist
-- parallel_thread filed equals 0 or 1
+- parallel_thread field equals 0 or 1
 
 ---
 
@@ -476,25 +494,45 @@ cargo fmt                      0.26s  succeeded
 
 ---
 
-## 9. Fallback script
+## 9. Events
 
-Set a script to run automatically when any command in a script fails:
+Events allow you to trigger additional commands based on whether a script succeeds or fails.
+
+---
+
+### `on_error`
+
+Runs when the script **fails**.
 
 ```toml
 [build]
-run = ["cargo build", "cargo test"]
-fallback = "notify-failure"
-
-[notify-failure]
-run = ["echo build failed, notifying team"]
+run = ["cargo test", "cargo build"]
+on_error = ["echo failed"]
 ```
 
-If any command in `build` fails, xeq immediately runs `notify-failure` and stops the rest of `build`.
+If any command in `run` fails, the commands in `on_error` will be executed.
 
-The fallback script receives the same `--args` that were passed to the original script.
+---
 
-> **Note:** `fallback` and `continue_on_err` cannot be used together on the same script. xeq will exit with an error if both are set.
+### `on_success`
 
+Runs when the script **completes successfully**.
+
+```toml
+[build]
+run = ["cargo test", "cargo build"]
+on_success = ["echo done"]
+```
+
+If all commands in `run` succeed, the commands in `on_success` will be executed.
+
+---
+
+### Rules & Limitations
+
+- Events are **ignored during parallel execution**
+- Using events will **disable the execution summary**
+- Events **cannot be combined with `continue_on_err`**
 ---
 
 ## 10. Custom shells

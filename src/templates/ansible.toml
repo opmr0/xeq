@@ -10,7 +10,9 @@ run = ["ansible all -i {{@inventory}} -m ping"]
 [deploy]
 description = "Run main playbook"
 run = ["ansible-playbook -i {{@inventory}} {{@playbook}}"]
-fallback = "notify-failure"
+on_error = [
+    "echo ansible deploy failed"
+]
 
 [deploy-check]
 description = "Dry run the playbook"
@@ -36,6 +38,3 @@ run = ["ansible-vault decrypt {{1}}"]
 description = "Lint all playbooks"
 run = ["ansible-lint {{@playbook}}"]
 
-[notify-failure]
-description = "Fallback — called when deploy fails"
-run = ["echo ansible deploy failed"]

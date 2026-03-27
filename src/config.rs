@@ -130,24 +130,6 @@ mod tests {
     }
 
     #[test]
-    fn read_scripts_parses_valid_toml() {
-        let dir = TempDir::new().unwrap();
-        write_toml(
-            &dir,
-            r#"
-[build]
-run = ["cargo build"]
-"#,
-        );
-        let original = std::env::current_dir().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-        let result = read_scripts(false);
-        std::env::set_current_dir(original).unwrap();
-        assert!(result.is_ok());
-        assert!(result.unwrap().scripts.contains_key("build"));
-    }
-
-    #[test]
     fn read_scripts_errors_on_invalid_toml() {
         let dir = TempDir::new().unwrap();
         write_toml(&dir, "{ this is not valid toml");

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::PathBuf};
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Config {
     pub shell: Option<String>,
     pub vars: Option<HashMap<String, String>>,
@@ -14,7 +14,7 @@ pub struct SavedPath {
     pub path: PathBuf,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum ScriptOption {
     Quiet,
@@ -25,12 +25,13 @@ pub enum ScriptOption {
     AllowEmptyVars,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Script {
     pub description: Option<String>,
     pub options: Option<Vec<ScriptOption>>,
     pub parallel_threads: Option<usize>,
-    pub fallback: Option<String>,
+    pub on_error: Option<Vec<String>>,
+    pub on_success: Option<Vec<String>>,
     pub dir: Option<String>,
     pub run: Vec<String>,
     pub vars: Option<HashMap<String, String>>,
@@ -99,7 +100,8 @@ run = []
     fn script_serializes_run_commands() {
         let script = Script {
             dir: None,
-            fallback: None,
+            on_error: None,
+            on_success: None,
             description: None,
             parallel_threads: None,
             options: None,
@@ -147,7 +149,7 @@ run = ["xeq://nonexistent"]
 [deploy]
 description = "Deploy to production"
 parallel_threads = 4
-fallback = "notify"
+on_error = ["notify"]
 dir = "/tmp"
 options = ["quiet", "continue_on_err"]
 vars = { env = "prod" }
@@ -158,7 +160,7 @@ run = ["echo deploying"]
         let s = scripts.get("deploy").unwrap();
         assert_eq!(s.description.as_deref(), Some("Deploy to production"));
         assert_eq!(s.parallel_threads, Some(4));
-        assert_eq!(s.fallback.as_deref(), Some("notify"));
+        assert_eq!(s.on_error, Some(vec!["notify".to_string()]));
         assert!(s.vars.as_ref().unwrap().contains_key("env"));
     }
 }

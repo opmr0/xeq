@@ -7,7 +7,9 @@ service = "my-service"
 
 [ecr-login]
 description = "Authenticate Docker to ECR"
-run = ["aws ecr get-login-password --region {{@region}} | docker login --username AWS --password-stdin {{@account_id}}.dkr.ecr.{{@region}}.amazonaws.com"]
+run = [
+    "aws ecr get-login-password --region {{@region}} | docker login --username AWS --password-stdin {{@account_id}}.dkr.ecr.{{@region}}.amazonaws.com",
+]
 
 [build]
 description = "Build and tag image for ECR"
@@ -30,15 +32,15 @@ run = [
     "xeq://push",
     "aws ecs update-service --cluster {{@cluster}} --service {{@service}} --force-new-deployment --region {{@region}}",
 ]
-fallback = "rollback"
-
-[rollback]
-description = "Fallback — revert ECS to previous deployment"
-run = ["aws ecs update-service --cluster {{@cluster}} --service {{@service}} --task-definition {{@service}}:previous --region {{@region}}"]
+on_error = [
+    "aws ecs update-service --cluster {{@cluster}} --service {{@service}} --task-definition {{@service}}:previous --region {{@region}}",
+]
 
 [status]
 description = "Check ECS service status"
-run = ["aws ecs describe-services --cluster {{@cluster}} --services {{@service}} --region {{@region}}"]
+run = [
+    "aws ecs describe-services --cluster {{@cluster}} --services {{@service}} --region {{@region}}",
+]
 
 [logs]
 description = "Tail CloudWatch logs"

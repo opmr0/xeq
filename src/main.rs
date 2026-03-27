@@ -87,6 +87,10 @@ enum Command {
 
         #[arg(short, long, num_args = 1.., value_name = "VALUES", help = "Pass arguments or variables to the script")]
         args: Option<Vec<String>>,
+        #[arg(short, long, help = "Preview commands without executing them")]
+        dry_run: bool,
+        #[arg(short = 'e', long, help = "Disable events for this run")]
+        no_events: bool,
     },
 
     #[command(
@@ -106,9 +110,7 @@ enum Command {
         alias = "i",
         about = "Create a starter xeq.toml in the current directory"
     )]
-    Init {
-        template: Option<String>,
-    },
+    Init { template: Option<String> },
 
     #[command(
         alias = "v",
@@ -122,6 +124,10 @@ enum Command {
         )]
         global: bool,
     },
+    #[clap(
+        disable_help_flag = true,
+        about = "Shows you how the xeq TOML format should be"
+    )]
     Toml,
 }
 
@@ -170,6 +176,8 @@ fn run_cli() -> Result<()> {
             global,
             summary,
             allow_empty_vars,
+            dry_run,
+            no_events,
         } => {
             cmd_run(
                 script_name,
@@ -183,26 +191,146 @@ fn run_cli() -> Result<()> {
                 global,
                 summary,
                 allow_empty_vars,
+                dry_run,
+                no_events,
             )?;
         }
         Command::List { global } => cmd_list(global),
         Command::Init { template } => cmd_init(template)?,
         Command::Validate { global } => cmd_validate(global),
         Command::Toml => {
-            // ! TEMP
-            println!("Fields for the whole file\n");
-            println!("shell\tOptional - Set the shell to run the command with, windows default: cmd, Linux/MacOS default: sh");
-            println!("Supported shells: sh, zsh, fish, bash, cmd, powershell\n");
-            println!("[vars]\t\tSet variables for the file level\nvar_name = \"value\"\n");
-            println!("Fields for the single script\n");
-            println!("run\tRequired - a group of commands to run\n");
-            println!("options\t Optional - Set a group of options for the script");
-            println!("Available options: continue_on_err, allow_recursion, allow_empty_vars, clear, quite, summary\n");
-            println!("dir\tOptional - Set the directory where the commands will run in\n");
-            println!("description\tOptional - Set a description for the script\n");
-            println!("parallel_threads\tOptional - Enable parallel execution and set a number of threads for the execution\n");
-            println!("fallback\tOptional - Set a fallback for another script if the current script failed\n");
-            println!("vars.var_name\t Set a variable for the script level")
+            println!("{}", "xeq toml format".bold().bright_green());
+            println!(
+                "{}",
+                "───────────────────────────────────────────────────────".dimmed()
+            );
+
+            println!("\n{}", "File level fields".bold().bright_yellow());
+
+            println!(
+                "  {} = {}         {}",
+                "shell".cyan(),
+                "\"bash\"".white(),
+                "optional - shell to run commands with".dimmed()
+            );
+            println!(
+                "                         {}",
+                "supported: sh, zsh, fish, bash, cmd, powershell".dimmed()
+            );
+            println!(
+                "                         {}",
+                "default: sh (linux/macos), cmd (windows)".dimmed()
+            );
+
+            println!(
+                "\n{}                   {}",
+                "[vars]".bright_magenta(),
+                "optional - file level variables".dimmed()
+            );
+            println!("  {} = {}", "var_name".cyan(), "\"value\"".white());
+
+            println!("\n{}", "Script fields".bold().bright_yellow());
+
+            println!("{}", "  [script-name]".bright_magenta());
+            println!(
+                "  {} = [{}] {}",
+                "run".cyan(),
+                "\"cmd1\", \"cmd2\"".white(),
+                "required - commands to run in order".dimmed()
+            );
+            println!(
+                "  {} = {}    {}",
+                "description".cyan(),
+                "\"...\"".white(),
+                "optional - shown in xeq list".dimmed()
+            );
+            println!(
+                "  {} = {}         {}",
+                "dir".cyan(),
+                "\"./path\"".white(),
+                "optional - working directory for commands".dimmed()
+            );
+            println!(
+                "  {} = [{}]      {}",
+                "options".cyan(),
+                "\"...\"".white(),
+                "optional - baked in flags".dimmed()
+            );
+            println!(
+                "  {} = {}   {}",
+                "parallel_threads".cyan(),
+                "4".white(),
+                "optional - enables parallel execution".dimmed()
+            );
+            println!(
+                "  {} = {}  {}",
+                "on_success".cyan(),
+                "\"script\"".white(),
+                "optional - script to run on success".dimmed()
+            );
+            println!(
+                "  {} = {}    {}",
+                "on_error".cyan(),
+                "\"script\"".white(),
+                "optional - script to run on error".dimmed()
+            );
+
+            println!(
+                "  {} = {}    {}",
+                "vars.var_name".cyan(),
+                "\"value\"".white(),
+                "optional - script level variable".dimmed()
+            );
+
+            println!("\n{}", "Available options".bold().bright_yellow());
+
+            let options = vec![
+                ("quiet", "suppress xeq log messages"),
+                ("clear", "clear terminal before each command"),
+                ("continue_on_err", "keep running if a command fails"),
+                ("allow_recursion", "allow a script to call itself"),
+                ("summary", "print execution summary after run"),
+                ("allow_empty_vars", "skip errors for undefined variables"),
+            ];
+
+            for (opt, desc) in options {
+                println!("  {:<20} {}", opt.cyan(), desc.dimmed());
+            }
+
+            println!("\n{}", "Variable types".bold().bright_yellow());
+
+            println!(
+                "  {}               {}",
+                "{{@var}}".bright_blue(),
+                "user defined variable".dimmed()
+            );
+            println!(
+                "  {}           {}",
+                "{{$ENV_VAR}}".bright_blue(),
+                "environment variable".dimmed()
+            );
+            println!(
+                "  {} {}            {}",
+                "{{1}}".bright_blue(),
+                "{{2}}".bright_blue(),
+                "positional arguments".dimmed()
+            );
+            println!(
+                "  {}      {}",
+                "{{snippets.name}}".bright_blue(),
+                "snippet output".dimmed()
+            );
+
+            println!(
+                "\n{}",
+                "───────────────────────────────────────────────────────".dimmed()
+            );
+            println!(
+                "{}",
+                "run `xeq init` to create a starter xeq.toml"
+                    .italic()
+                    .bright_black()
+            );
         }
     }
 
@@ -240,6 +368,8 @@ fn cmd_run(
     global: bool,
     summary: bool,
     allow_empty_vars: bool,
+    dry_run: bool,
+    no_events: bool,
 ) -> Result<()> {
     if global {
         validate_or_exit();
@@ -259,12 +389,18 @@ fn cmd_run(
         allow_recursion,
         summary,
         allow_empty_vars,
+        dry_run,
+        no_events,
     };
 
     let cwd = std::env::current_dir().unwrap_or_else(|_| {
         err!("could not determine current directory, falling back to '.'");
         PathBuf::from(".")
     });
+
+    if opts.dry_run {
+        log!(false, "{}", "Running dry..".yellow())
+    }
 
     let mut visited = HashSet::new();
     run(script_name, &config, &mut visited, args, opts, cwd).unwrap_or_else(|e| {

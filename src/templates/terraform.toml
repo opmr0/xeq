@@ -19,7 +19,7 @@ run = [
     "xeq://plan",
     "terraform apply -auto-approve -var='env={{@env}}' -var='region={{@region}}'",
 ]
-fallback = "notify-failure"
+on_error = ["echo terraform apply failed in {{@env}}"]
 
 [destroy]
 description = "Destroy all infrastructure"
@@ -41,6 +41,3 @@ run = ["terraform fmt -recursive"]
 description = "Show all outputs"
 run = ["terraform output"]
 
-[notify-failure]
-description = "Fallback — called when apply fails"
-run = ["echo terraform apply failed in {{@env}}"]

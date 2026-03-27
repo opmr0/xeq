@@ -1,5 +1,3 @@
-use colored::Colorize;
-
 use crate::types::{Config, ScriptOption, Scripts};
 
 fn check_recursion(
@@ -38,6 +36,7 @@ pub fn validate(config: &Config) -> bool {
     for (name, script) in scripts {
         let mut script_has_errs = false;
         log!(false, "validating '{}'", name);
+        let events = script.on_error.is_some() || script.on_success.is_some();
 
         let mut visited = vec![name.clone()];
         check_recursion(
@@ -48,14 +47,34 @@ pub fn validate(config: &Config) -> bool {
             &mut script_has_errs,
         );
 
-        if script.fallback.is_some()
+        if events
+            && script
+                .options
+                .as_ref()
+                .is_some_and(|o| o.contains(&ScriptOption::Summary))
+        {
+            err!("'{}': Summary will be ignored because of events", name);
+            has_errs = true;
+            script_has_errs = true;
+        }
+
+        if events && script.parallel_threads.is_some() {
+            err!(
+                "'{}': events will be ignored in the parallel execution",
+                name
+            );
+            has_errs = true;
+            script_has_errs = true;
+        }
+
+        if events
             && script
                 .options
                 .as_ref()
                 .is_some_and(|o| o.contains(&ScriptOption::ContinueOnErr))
         {
             err!(
-                "'{}': fallback and continue_on_err cannot be used together",
+                "'{}': events and continue_on_err cannot be used together",
                 name
             );
             has_errs = true;
@@ -117,9 +136,8 @@ pub fn validate(config: &Config) -> bool {
                     let in_global = config.vars.as_ref().is_some_and(|v| v.contains_key(key));
                     let in_local = script.vars.as_ref().is_some_and(|v| v.contains_key(key));
                     if !in_global && !in_local {
-                        println!(
-                            "{} '{}': '{{{{@{}}}}}' is not defined in vars, must be passed at runtime with --args",
-                            "[xeq]".yellow().bold(),
+                        log!(false,
+                            "'{}': '{{{{@{}}}}}' is not defined in vars, must be passed at runtime with --args",
                             name,
                             key
                         );
@@ -165,7 +183,8 @@ mod tests {
             description: None,
             options: None,
             parallel_threads: None,
-            fallback: None,
+            on_error: None,
+            on_success: None,
             dir: None,
             vars: None,
             run: run.into_iter().map(String::from).collect(),
@@ -221,7 +240,7 @@ mod tests {
         scripts.insert(
             "build".into(),
             Script {
-                fallback: Some("notify".into()),
+                on_error: Some(vec!["notify".into()]),
                 options: Some(vec![ScriptOption::ContinueOnErr]),
                 ..simple_script(vec!["cargo build"])
             },
