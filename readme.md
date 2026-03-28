@@ -44,7 +44,7 @@ Every project has a setup ritual. Ten commands, always in the same order, every 
 
 ## Demo
 
-![demo](./assets/demo.gif)
+![demo](assets/demo.gif)
 
 ## Installation
 
