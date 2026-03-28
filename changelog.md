@@ -9,6 +9,7 @@ All notable changes to xeq will be documented here.
 ### Added 
 - `--dry-run` / `-d` flag to preview commands without executing them
 - `on_success` and `on_error` field in the config file (events)
+- `--no-event` / `-e` to disable events for this run
 
 ## Changed
 - `fallback` field changed to `on_error`

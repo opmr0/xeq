@@ -151,6 +151,7 @@ xeq run deploy --args env=prod
 | `--allow-empty-args`       | `-A`  | Remove the restrictions on arguments and variables                                                                |
 | `--no-env`                 |       | Skip loading the `.env` file                                                                                      |
 | `--allow-recursion`        |       | Let a script call itself                                                                                          |
+| ّّ`--no-events`            | `-e`  | Disable events for this run                                                                                       |
 
 ---
 
@@ -379,7 +380,7 @@ Mix named and positional args in a single call:
 xeq run deploy --args env=production my-app
 ```
 
-> an error will happen if the argument isn't passed, you can prevent this from happening using `--allow-empty-vars` / `-A` flag or `allow_empty_flag` option and the raw `{{n}}` will be passed if no arguments was provided
+> an error will happen if the argument isn't passed, you can prevent this by using `--allow-empty-vars` / `-A` flag or `allow_empty_flag` option and the raw `{{n}}` will be passed if no arguments was provided
 
 ---
 
@@ -406,7 +407,7 @@ xeq run deploy   # API_TOKEN and DEPLOY_ENV loaded automatically
 
 Pass `--no-env` to skip loading the `.env` file.
 
-> an error will happen if the environment variable doesn't exists
+> an error will happen if the environment variable doesn't exist, you can prevent this by using `--allow-empty-vars` / `-A` flag or `allow_empty_flag` option and the raw `{{n}}` will be passed if no arguments was provided
 
 ---
 
@@ -533,6 +534,7 @@ If all commands in `run` succeed, the commands in `on_success` will be executed.
 - Events are **ignored during parallel execution**
 - Using events will **disable the execution summary**
 - Events **cannot be combined with `continue_on_err`**
+
 ---
 
 ## 10. Custom shells
