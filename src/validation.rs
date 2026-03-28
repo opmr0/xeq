@@ -58,8 +58,8 @@ pub fn validate(config: &Config) -> bool {
             script_has_errs = true;
         }
 
-        if let Some(s) = &config.default{
-            if scripts.get(s).is_none(){
+        if let Some(s) = &config.default {
+            if scripts.get(s).is_none() {
                 err!("The default script \'{s}\' doesn't exist")
             };
         }

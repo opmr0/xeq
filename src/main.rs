@@ -417,9 +417,9 @@ fn cmd_list(global: bool) {
     let source = if global { "global config" } else { "xeq.toml" };
 
     println!(
-        "\n{} {}\n{}",
+        "\n{} scripts in {}:\n{}",
         "[xeq]".cyan().bold(),
-        format!("scripts in {}:", source),
+        source,
         "─".repeat(40).dimmed()
     );
 
