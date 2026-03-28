@@ -9,7 +9,7 @@ run = ["{{@pkg_manager}} install"]
 [dev]
 description = "Start Expo dev server"
 run = [
-    "xeq://install",
+    "xeq:install",
     "{{@pkg_manager}} run start",
 ]
 

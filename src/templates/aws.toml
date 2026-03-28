@@ -21,15 +21,15 @@ run = [
 [push]
 description = "Push image to ECR"
 run = [
-    "xeq://ecr-login",
-    "xeq://build",
+    "xeq:ecr-login",
+    "xeq:build",
     "docker push {{@account_id}}.dkr.ecr.{{@region}}.amazonaws.com/{{@repo}}:latest",
 ]
 
 [deploy]
 description = "Push image and force new ECS deployment"
 run = [
-    "xeq://push",
+    "xeq:push",
     "aws ecs update-service --cluster {{@cluster}} --service {{@service}} --force-new-deployment --region {{@region}}",
 ]
 on_error = [

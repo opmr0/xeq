@@ -36,11 +36,11 @@ run = [
 ]
 
 [ci]
-description = "Full CI — lint, test, build in sequence"
+description = "Full CI - lint, test, build in sequence"
 run = [
-    "xeq://lint-all",
-    "xeq://test-all",
-    "xeq://build-all",
+    "xeq:lint-all",
+    "xeq:test-all",
+    "xeq:build-all",
 ]
 
 [clean]

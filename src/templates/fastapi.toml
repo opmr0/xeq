@@ -38,7 +38,7 @@ description = "Run Alembic migrations"
 run = ["{{@venv}}/bin/alembic upgrade head"]
 
 [migrate-new]
-description = "Create new migration — xeq run migrate-new --args my_migration"
+description = "Create new migration - xeq run migrate-new --args my_migration"
 run = ["{{@venv}}/bin/alembic revision --autogenerate -m '{{1}}'"]
 
 [clean]

@@ -22,8 +22,8 @@ run = [
 [deploy]
 description = "Build and push"
 run = [
-    "xeq://build",
-    "xeq://push",
+    "xeq:build",
+    "xeq:push",
 ]
 
 [compose-up]

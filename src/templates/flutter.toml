@@ -8,21 +8,21 @@ run = ["flutter pub get"]
 [dev]
 description = "Run app in debug mode"
 run = [
-    "xeq://install",
+    "xeq:install",
     "flutter run",
 ]
 
 [build-android]
 description = "Build Android APK"
 run = [
-    "xeq://install",
+    "xeq:install",
     "flutter build apk --flavor {{@flavor}}",
 ]
 
 [build-ios]
 description = "Build iOS release"
 run = [
-    "xeq://install",
+    "xeq:install",
     "flutter build ios --release --no-codesign",
 ]
 

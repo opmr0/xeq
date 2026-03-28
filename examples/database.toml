@@ -26,8 +26,8 @@ description = "Drop, recreate and seed the database"
 run = [
     "dropdb --if-exists {{$DB_NAME}}",
     "createdb {{$DB_NAME}}",
-    "xeq://migrate-up",
-    "xeq://seed"
+    "xeq:migrate-up",
+    "xeq:seed"
 ]
 
 [dump]

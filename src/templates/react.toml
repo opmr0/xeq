@@ -1,5 +1,5 @@
 [create]
-description = "Scaffold a new project — xeq run create --args my-app react-ts"
+description = "Scaffold a new project - xeq run create --args my-app react-ts"
 run = [
     "npm create vite@latest {{1}} -- --template {{2}}",
     "cd {{1}}",
@@ -17,7 +17,7 @@ run = ["npm run build"]
 [preview]
 description = "Preview production build locally"
 run = [
-    "xeq://build",
+    "xeq:build",
     "npm run preview",
 ]
 

@@ -4,6 +4,7 @@
         "cpus",
         "dotenvy",
         "fastapi",
+        "Justfile",
         "laravel",
         "tauri",
         "threadpool",

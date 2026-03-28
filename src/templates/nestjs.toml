@@ -8,14 +8,14 @@ run = ["{{@pkg_manager}} install"]
 [dev]
 description = "Start NestJS dev server with watch"
 run = [
-    "xeq://install",
+    "xeq:install",
     "{{@pkg_manager}} run start:dev",
 ]
 
 [build]
 description = "Production build"
 run = [
-    "xeq://install",
+    "xeq:install",
     "{{@pkg_manager}} run build",
 ]
 
@@ -40,7 +40,7 @@ run = [
 ]
 
 [generate]
-description = "Generate a NestJS resource — xeq run generate --args users"
+description = "Generate a NestJS resource - xeq run generate --args users"
 run = ["{{@pkg_manager}} run nest generate resource {{1}}"]
 
 [migrate]
@@ -48,5 +48,5 @@ description = "Run TypeORM migrations"
 run = ["{{@pkg_manager}} run migration:run"]
 
 [migrate-new]
-description = "Create new migration — xeq run migrate-new --args AddUsersTable"
+description = "Create new migration - xeq run migrate-new --args AddUsersTable"
 run = ["{{@pkg_manager}} run migration:create --name={{1}}"]

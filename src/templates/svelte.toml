@@ -8,21 +8,21 @@ run = ["{{@pkg_manager}} install"]
 [dev]
 description = "Start SvelteKit dev server"
 run = [
-    "xeq://install",
+    "xeq:install",
     "{{@pkg_manager}} run dev",
 ]
 
 [build]
 description = "Production build"
 run = [
-    "xeq://install",
+    "xeq:install",
     "{{@pkg_manager}} run build",
 ]
 
 [preview]
 description = "Preview production build"
 run = [
-    "xeq://build",
+    "xeq:build",
     "{{@pkg_manager}} run preview",
 ]
 

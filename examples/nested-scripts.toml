@@ -17,22 +17,22 @@ run = ["npm run build"]
 [ci]
 description = "Full CI pipeline: install, lint, test, build"
 run = [
-    "xeq://install",
-    "xeq://lint",
-    "xeq://test",
-    "xeq://build"
+    "xeq:install",
+    "xeq:lint",
+    "xeq:test",
+    "xeq:build"
 ]
 
 [deploy]
 description = "CI pipeline then deploy"
 run = [
-    "xeq://ci",
+    "xeq:ci",
     "npm run deploy"
 ]
 
 [quick-check]
 description = "Lint and test without install or build"
 run = [
-    "xeq://lint",
-    "xeq://test"
+    "xeq:lint",
+    "xeq:test"
 ]

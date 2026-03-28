@@ -13,7 +13,7 @@ run = ["{{@mvn}} spring-boot:run"]
 [build]
 description = "Build JAR"
 run = [
-    "xeq://test",
+    "xeq:test",
     "{{@mvn}} package",
 ]
 
@@ -37,7 +37,7 @@ run = ["{{@mvn}} clean"]
 description = "Clean, test and package"
 run = [
     "{{@mvn}} clean",
-    "xeq://test",
+    "xeq:test",
     "{{@mvn}} package",
 ]
 on_error = ["echo maven build failed"]

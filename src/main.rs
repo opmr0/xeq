@@ -6,6 +6,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[macro_use]
 mod macros;
@@ -19,6 +20,8 @@ use config::{load_path, read_scripts, save_path, validate_path};
 use runner::{run, RunOptions};
 use templates::get_template;
 use validation::validate;
+
+pub static INTERRUPTED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Parser, Debug)]
 #[clap(
@@ -42,7 +45,7 @@ enum Command {
     #[command(alias = "r", about = "Run a named script from your xeq.toml")]
     Run {
         #[arg(value_name = "SCRIPT_NAME", help = "Name of the script to run")]
-        script_name: String,
+        script_name: Option<String>,
 
         #[arg(short = 'C', long, help = "Keep running even if a command fails")]
         continue_on_err: bool,
@@ -160,6 +163,25 @@ fn main() {
 }
 
 fn run_cli() -> Result<()> {
+    let last_ctrl_c = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let last_ctrl_c_clone = last_ctrl_c.clone();
+
+    ctrlc::set_handler(move || {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+
+        let last = last_ctrl_c_clone.load(Ordering::SeqCst);
+
+        if now - last < 2000 {
+            process::exit(1);
+        } else {
+            last_ctrl_c_clone.store(now, Ordering::SeqCst);
+        }
+    })
+    .unwrap();
+
     let cli = Cli::parse();
 
     match cli.command {
@@ -199,92 +221,69 @@ fn run_cli() -> Result<()> {
         Command::Init { template } => cmd_init(template)?,
         Command::Validate { global } => cmd_validate(global),
         Command::Toml => {
-            println!("{}", "xeq toml format".bold().bright_green());
-            println!(
-                "{}",
-                "───────────────────────────────────────────────────────".dimmed()
-            );
+            let sep = "─".repeat(55).dimmed();
 
-            println!("\n{}", "File level fields".bold().bright_yellow());
+            println!("\n{}", "xeq toml format".bold().bright_green());
+            println!("{}\n", sep);
 
+            // File level
+            println!("{}", "File".bold().bright_yellow());
             println!(
-                "  {} = {}         {}",
-                "shell".cyan(),
-                "\"bash\"".white(),
-                "optional - shell to run commands with".dimmed()
+                "  {:<20} {}",
+                "shell = \"bash\"".cyan(),
+                "optional - sh, zsh, fish, bash, cmd, powershell".dimmed()
             );
             println!(
-                "                         {}",
-                "supported: sh, zsh, fish, bash, cmd, powershell".dimmed()
+                "  {:<20} {}",
+                "default = \"script\"".cyan(),
+                "optional - script to run when no name is given".dimmed()
             );
             println!(
-                "                         {}",
-                "default: sh (linux/macos), cmd (windows)".dimmed()
-            );
-
-            println!(
-                "\n{}                   {}",
+                "  {:<20} {}",
                 "[vars]".bright_magenta(),
                 "optional - file level variables".dimmed()
             );
-            println!("  {} = {}", "var_name".cyan(), "\"value\"".white());
+            println!("  {:<20}", "  var_name = \"value\"".white());
 
-            println!("\n{}", "Script fields".bold().bright_yellow());
-
+            // Script fields
+            println!("\n{}", "Script".bold().bright_yellow());
             println!("{}", "  [script-name]".bright_magenta());
-            println!(
-                "  {} = [{}] {}",
-                "run".cyan(),
-                "\"cmd1\", \"cmd2\"".white(),
-                "required - commands to run in order".dimmed()
-            );
-            println!(
-                "  {} = {}    {}",
-                "description".cyan(),
-                "\"...\"".white(),
-                "optional - shown in xeq list".dimmed()
-            );
-            println!(
-                "  {} = {}         {}",
-                "dir".cyan(),
-                "\"./path\"".white(),
-                "optional - working directory for commands".dimmed()
-            );
-            println!(
-                "  {} = [{}]      {}",
-                "options".cyan(),
-                "\"...\"".white(),
-                "optional - baked in flags".dimmed()
-            );
-            println!(
-                "  {} = {}   {}",
-                "parallel_threads".cyan(),
-                "4".white(),
-                "optional - enables parallel execution".dimmed()
-            );
-            println!(
-                "  {} = {}  {}",
-                "on_success".cyan(),
-                "\"script\"".white(),
-                "optional - script to run on success".dimmed()
-            );
-            println!(
-                "  {} = {}    {}",
-                "on_error".cyan(),
-                "\"script\"".white(),
-                "optional - script to run on error".dimmed()
-            );
 
-            println!(
-                "  {} = {}    {}",
-                "vars.var_name".cyan(),
-                "\"value\"".white(),
-                "optional - script level variable".dimmed()
-            );
+            let fields: &[(&str, &str, &str)] = &[
+                (
+                    "run",
+                    "= [\"cmd1\", \"cmd2\"]",
+                    "required - commands to run in order",
+                ),
+                ("description", "= \"...\"", "optional - shown in xeq list"),
+                ("dir", "= \"./path\"", "optional - working directory"),
+                ("options", "= [\"...\"]", "optional - baked in flags"),
+                (
+                    "parallel_threads",
+                    "= 4",
+                    "optional - enables parallel execution",
+                ),
+                ("on_success", "= [\"cmd\"]", "optional - run on success"),
+                ("on_error", "= [\"cmd\"]", "optional - run on error"),
+                (
+                    "vars.name",
+                    "= \"value\"",
+                    "optional - script level variable",
+                ),
+                (
+                    "default",
+                    "= \"script\"",
+                    "optional - run when no script is given",
+                ),
+            ];
 
-            println!("\n{}", "Available options".bold().bright_yellow());
+            for (key, val, desc) in fields {
+                println!("  {:<18} {:<22} {}", key.cyan(), val.white(), desc.dimmed());
+            }
 
-            let options = vec![
+            // Options
+            println!("\n{}", "Options".bold().bright_yellow());
+            let options: &[(&str, &str)] = &[
                 ("quiet", "suppress xeq log messages"),
                 ("clear", "clear terminal before each command"),
                 ("continue_on_err", "keep running if a command fails"),
@@ -292,39 +291,23 @@ fn run_cli() -> Result<()> {
                 ("summary", "print execution summary after run"),
                 ("allow_empty_vars", "skip errors for undefined variables"),
             ];
-
             for (opt, desc) in options {
                 println!("  {:<20} {}", opt.cyan(), desc.dimmed());
             }
 
-            println!("\n{}", "Variable types".bold().bright_yellow());
+            // Variable types
+            println!("\n{}", "Variables".bold().bright_yellow());
+            let vars: &[(&str, &str)] = &[
+                ("{{@var}}", "user defined variable"),
+                ("{{@var | default}}", "user defined variable with fallback"),
+                ("{{$ENV_VAR}}", "environment variable"),
+                ("{{1}} {{2}}", "positional arguments"),
+            ];
+            for (syntax, desc) in vars {
+                println!("  {:<26} {}", syntax.bright_blue(), desc.dimmed());
+            }
 
-            println!(
-                "  {}               {}",
-                "{{@var}}".bright_blue(),
-                "user defined variable".dimmed()
-            );
-            println!(
-                "  {}           {}",
-                "{{$ENV_VAR}}".bright_blue(),
-                "environment variable".dimmed()
-            );
-            println!(
-                "  {} {}            {}",
-                "{{1}}".bright_blue(),
-                "{{2}}".bright_blue(),
-                "positional arguments".dimmed()
-            );
-            println!(
-                "  {}      {}",
-                "{{snippets.name}}".bright_blue(),
-                "snippet output".dimmed()
-            );
-
-            println!(
-                "\n{}",
-                "───────────────────────────────────────────────────────".dimmed()
-            );
+            println!("\n{}", sep);
             println!(
                 "{}",
                 "run `xeq init` to create a starter xeq.toml"
@@ -357,7 +340,7 @@ fn cmd_config(path: Option<PathBuf>) -> Result<()> {
 
 #[allow(clippy::too_many_arguments)]
 fn cmd_run(
-    script_name: String,
+    script_name: Option<String>,
     continue_on_err: bool,
     clear: bool,
     quiet: bool,
@@ -402,6 +385,20 @@ fn cmd_run(
         log!(false, "{}", "Running dry..".yellow())
     }
 
+    let script_name = match script_name {
+        Some(x) => x,
+        None => match config.default.clone() {
+            Some(x) => {
+                log!(opts.quiet, "Running the default script '{x}'");
+                x
+            }
+            None => {
+                err!("no script name provided and no default script set");
+                process::exit(1);
+            }
+        },
+    };
+
     let mut visited = HashSet::new();
     run(script_name, &config, &mut visited, args, opts, cwd).unwrap_or_else(|e| {
         err!("{}", e);
@@ -416,30 +413,70 @@ fn cmd_list(global: bool) {
         validate_or_exit();
     }
 
-    log!(
-        false,
-        "scripts in {}:",
-        if global { "global config" } else { "xeq.toml" }
+    let config = load_config_or_exit(global);
+    let source = if global { "global config" } else { "xeq.toml" };
+
+    println!(
+        "\n{} {}\n{}",
+        "[xeq]".cyan().bold(),
+        format!("scripts in {}:", source),
+        "─".repeat(40).dimmed()
     );
 
-    let config = load_config_or_exit(global);
-
-    for (name, script) in &config.scripts {
-        println!(
-            "{} --- {}\ndir: {}\nruns:",
-            name.cyan().bold(),
-            script
-                .description
-                .as_deref()
-                .unwrap_or("no description")
-                .italic(),
-            script.dir.as_deref().unwrap_or("none"),
-        );
-        for cmd in &script.run {
-            println!("\t{}", cmd.yellow());
-        }
+    // file level config
+    if let Some(shell) = &config.shell {
+        println!("  {} {}", "shell:".bright_black(), shell.white());
+    }
+    if let Some(default) = &config.default {
+        println!("  {} {}", "default:".bright_black(), default.white());
+    }
+    if config.shell.is_some() || config.default.is_some() {
         println!();
     }
+
+    for (name, script) in &config.scripts {
+        let desc = script.description.as_deref().unwrap_or("no description");
+        let dir = script.dir.as_deref().unwrap_or(".");
+        let parallel = script
+            .parallel_threads
+            .map(|n| format!(" · {} threads", n))
+            .unwrap_or_default();
+
+        println!(
+            "  {} {}{}",
+            name.cyan().bold(),
+            desc.dimmed().italic(),
+            parallel.dimmed()
+        );
+        println!("  {} {}", "dir:".bright_black(), dir.white());
+        for cmd in &script.run {
+            println!("    {} {}", "›".dimmed(), cmd.yellow());
+        }
+        if let Some(on_success) = &script.on_success {
+            println!(
+                "  {} {}",
+                "on_success:".bright_black(),
+                on_success.join(", ").green()
+            );
+        }
+        if let Some(on_error) = &script.on_error {
+            println!(
+                "  {} {}",
+                "on_error:".bright_black(),
+                on_error.join(", ").red()
+            );
+        }
+
+        println!();
+    }
+
+    println!("{}", "─".repeat(40).dimmed());
+    println!(
+        "{}",
+        format!("{} scripts", config.scripts.len())
+            .dimmed()
+            .italic()
+    );
 }
 
 fn cmd_init(template: Option<String>) -> Result<()> {

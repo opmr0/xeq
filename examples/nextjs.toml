@@ -26,7 +26,7 @@ run = [
 [start]
 description = "Start the production server"
 run = [
-    "xeq://build",
+    "xeq:build",
     "cd {{@app}}",
     "npm start"
 ]
@@ -41,8 +41,8 @@ run = [
 [check]
 description = "Lint and build"
 run = [
-    "xeq://lint",
-    "xeq://build"
+    "xeq:lint",
+    "xeq:build"
 ]
 
 [clean]

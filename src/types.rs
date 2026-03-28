@@ -4,6 +4,7 @@ use std::{collections::HashMap, path::PathBuf};
 #[derive(Deserialize, Debug, Clone)]
 pub struct Config {
     pub shell: Option<String>,
+    pub default: Option<String>,
     pub vars: Option<HashMap<String, String>>,
     #[serde(flatten)]
     pub scripts: Scripts,
@@ -118,14 +119,14 @@ run = []
         let scripts: Scripts = toml::from_str(
             r#"
 [build]
-run = ["xeq://setup", "cargo build"]
+run = ["xeq:setup", "cargo build"]
 
 [setup]
 run = ["echo setting up"]
 "#,
         )
         .unwrap();
-        let target = &scripts["build"].run[0]["xeq://".len()..];
+        let target = &scripts["build"].run[0]["xeq:".len()..];
         assert!(scripts.contains_key(target));
     }
 
@@ -134,11 +135,11 @@ run = ["echo setting up"]
         let scripts: Scripts = toml::from_str(
             r#"
 [build]
-run = ["xeq://nonexistent"]
+run = ["xeq:nonexistent"]
 "#,
         )
         .unwrap();
-        let target = &scripts["build"].run[0]["xeq://".len()..];
+        let target = &scripts["build"].run[0]["xeq:".len()..];
         assert!(!scripts.contains_key(target));
     }
 

@@ -8,21 +8,21 @@ run = ["{{@pkg_manager}} install"]
 [dev]
 description = "Start Astro dev server"
 run = [
-    "xeq://install",
+    "xeq:install",
     "{{@pkg_manager}} run dev",
 ]
 
 [build]
 description = "Production build"
 run = [
-    "xeq://install",
+    "xeq:install",
     "{{@pkg_manager}} run build",
 ]
 
 [preview]
 description = "Preview production build locally"
 run = [
-    "xeq://build",
+    "xeq:build",
     "{{@pkg_manager}} run preview",
 ]
 
@@ -31,7 +31,7 @@ description = "Type-check Astro files"
 run = ["{{@pkg_manager}} run astro check"]
 
 [add]
-description = "Add an Astro integration — xeq run add --args tailwind"
+description = "Add an Astro integration - xeq run add --args tailwind"
 run = ["{{@pkg_manager}} run astro add {{1}}"]
 
 [sync]

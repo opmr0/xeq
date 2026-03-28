@@ -9,7 +9,7 @@ run = ["dotnet restore"]
 [build]
 description = "Build the solution"
 run = [
-    "xeq://restore",
+    "xeq:restore",
     "dotnet build --configuration {{@config}}",
 ]
 
@@ -32,7 +32,7 @@ run = [
 [publish]
 description = "Publish for production"
 run = [
-    "xeq://build",
+    "xeq:build",
     "dotnet publish --configuration {{@config}} --output ./publish",
 ]
 
@@ -45,7 +45,7 @@ description = "Clean build artifacts"
 run = ["dotnet clean"]
 
 [migrations-add]
-description = "Add a new EF Core migration — xeq run migrations-add --args InitialCreate"
+description = "Add a new EF Core migration - xeq run migrations-add --args InitialCreate"
 run = ["dotnet ef migrations add {{1}}"]
 
 [migrations-apply]

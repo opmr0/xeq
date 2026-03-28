@@ -24,7 +24,7 @@ description = "Format all files"
 run = ["deno fmt"]
 
 [compile]
-description = "Compile to a self-contained binary — xeq run compile --args my-app"
+description = "Compile to a self-contained binary - xeq run compile --args my-app"
 run = ["deno compile --allow-all --output {{1}} main.ts"]
 
 [cache]

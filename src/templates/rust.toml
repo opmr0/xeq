@@ -14,7 +14,7 @@ run = [
 [build]
 description = "Build release binary"
 run = [
-    "xeq://check",
+    "xeq:check",
     "cargo build --release",
 ]
 on_error = ["echo build failed"]
@@ -30,7 +30,7 @@ run = ["cargo test -- --nocapture"]
 [publish]
 description = "Publish to crates.io"
 run = [
-    "xeq://build",
+    "xeq:build",
     "cargo publish",
 ]
 

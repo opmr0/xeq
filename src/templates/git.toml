@@ -10,14 +10,14 @@ run = [
 ]
 
 [branch]
-description = "Create and switch to a new branch — xeq run branch --args my-feature"
+description = "Create and switch to a new branch - xeq run branch --args my-feature"
 run = [
-    "xeq://sync",
+    "xeq:sync",
     "git checkout -b {{1}}",
 ]
 
 [save]
-description = "Stage all and commit — xeq run save --args 'my commit message'"
+description = "Stage all and commit - xeq run save --args 'my commit message'"
 run = [
     "git add -A",
     "git commit -m \"{{1}}\"",
@@ -30,14 +30,14 @@ run = ["git push {{@remote}} HEAD"]
 [pr]
 description = "Push and open a pull request"
 run = [
-    "xeq://push",
+    "xeq:push",
     "gh pr create --fill",
 ]
 
 [release]
-description = "Tag and push a release — xeq run release --args v1.0.0"
+description = "Tag and push a release - xeq run release --args v1.0.0"
 run = [
-    "xeq://sync",
+    "xeq:sync",
     "git tag {{1}}",
     "git push {{@remote}} {{1}}",
 ]

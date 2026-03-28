@@ -5,14 +5,14 @@ run = ["bun install"]
 [dev]
 description = "Start dev server"
 run = [
-    "xeq://install",
+    "xeq:install",
     "bun run dev",
 ]
 
 [build]
 description = "Build for production"
 run = [
-    "xeq://install",
+    "xeq:install",
     "bun run build",
 ]
 

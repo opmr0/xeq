@@ -19,7 +19,7 @@ description = "Dry run the playbook"
 run = ["ansible-playbook -i {{@inventory}} {{@playbook}} --check"]
 
 [deploy-tag]
-description = "Run playbook for a specific tag — xeq run deploy-tag --args my-tag"
+description = "Run playbook for a specific tag - xeq run deploy-tag --args my-tag"
 run = ["ansible-playbook -i {{@inventory}} {{@playbook}} --tags {{1}}"]
 
 [vault-edit]
@@ -27,11 +27,11 @@ description = "Edit encrypted vault file"
 run = ["ansible-vault edit {{@vault_file}}"]
 
 [vault-encrypt]
-description = "Encrypt a file — xeq run vault-encrypt --args secrets.yml"
+description = "Encrypt a file - xeq run vault-encrypt --args secrets.yml"
 run = ["ansible-vault encrypt {{1}}"]
 
 [vault-decrypt]
-description = "Decrypt a file — xeq run vault-decrypt --args secrets.yml"
+description = "Decrypt a file - xeq run vault-decrypt --args secrets.yml"
 run = ["ansible-vault decrypt {{1}}"]
 
 [lint]

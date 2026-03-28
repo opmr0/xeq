@@ -11,7 +11,7 @@ description = "Build static site"
 run = ["hugo --minify --baseURL {{@base_url}}"]
 
 [new-post]
-description = "Create a new post — xeq run new-post --args posts/my-post.md"
+description = "Create a new post - xeq run new-post --args posts/my-post.md"
 run = ["hugo new {{1}}"]
 
 [check]
@@ -21,7 +21,7 @@ run = ["hugo --printPathWarnings"]
 [deploy-gh-pages]
 description = "Build and deploy to GitHub Pages"
 run = [
-    "xeq://build",
+    "xeq:build",
     "git add public",
     "git commit -m 'deploy'",
     "git subtree push --prefix public origin gh-pages",

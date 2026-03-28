@@ -9,14 +9,14 @@ run = ["terraform init"]
 [plan]
 description = "Preview infrastructure changes"
 run = [
-    "xeq://init",
+    "xeq:init",
     "terraform plan -var='env={{@env}}' -var='region={{@region}}'",
 ]
 
 [apply]
 description = "Apply infrastructure changes"
 run = [
-    "xeq://plan",
+    "xeq:plan",
     "terraform apply -auto-approve -var='env={{@env}}' -var='region={{@region}}'",
 ]
 on_error = ["echo terraform apply failed in {{@env}}"]

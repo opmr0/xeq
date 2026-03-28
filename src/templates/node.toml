@@ -8,14 +8,14 @@ run = ["{{@pkg_manager}} install"]
 [dev]
 description = "Start dev server"
 run = [
-    "xeq://install",
+    "xeq:install",
     "{{@pkg_manager}} run dev",
 ]
 
 [build]
 description = "Production build"
 run = [
-    "xeq://install",
+    "xeq:install",
     "{{@pkg_manager}} run build",
 ]
 

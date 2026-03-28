@@ -21,25 +21,25 @@ run = [
 ]
 
 [logs]
-description = "Tail logs for a pod — xeq run logs --args my-pod"
+description = "Tail logs for a pod - xeq run logs --args my-pod"
 run = ["kubectl logs -f {{1}} --namespace {{@namespace}}"]
 
 [exec]
-description = "Shell into a pod — xeq run exec --args my-pod"
+description = "Shell into a pod - xeq run exec --args my-pod"
 run = ["kubectl exec -it {{1}} --namespace {{@namespace}} -- /bin/sh"]
 
 [rollout-restart]
-description = "Rolling restart a deployment — xeq run rollout-restart --args my-deployment"
+description = "Rolling restart a deployment - xeq run rollout-restart --args my-deployment"
 run = ["kubectl rollout restart deployment/{{1}} --namespace {{@namespace}}"]
 
 [rollout-status]
-description = "Watch rollout status — xeq run rollout-status --args my-deployment"
+description = "Watch rollout status - xeq run rollout-status --args my-deployment"
 run = ["kubectl rollout status deployment/{{1}} --namespace {{@namespace}}"]
 
 [scale]
-description = "Scale a deployment — xeq run scale --args my-deployment 3"
+description = "Scale a deployment - xeq run scale --args my-deployment 3"
 run = ["kubectl scale deployment/{{1}} --replicas={{2}} --namespace {{@namespace}}"]
 
 [port-forward]
-description = "Port forward a service — xeq run port-forward --args my-service 8080 80"
+description = "Port forward a service - xeq run port-forward --args my-service 8080 80"
 run = ["kubectl port-forward service/{{1}} {{2}}:{{3}} --namespace {{@namespace}}"]

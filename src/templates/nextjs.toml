@@ -8,21 +8,21 @@ run = ["{{@pkg_manager}} install"]
 [dev]
 description = "Start Next.js dev server"
 run = [
-    "xeq://install",
+    "xeq:install",
     "{{@pkg_manager}} run dev",
 ]
 
 [build]
 description = "Production build"
 run = [
-    "xeq://install",
+    "xeq:install",
     "{{@pkg_manager}} run build",
 ]
 
 [start]
 description = "Start production server"
 run = [
-    "xeq://build",
+    "xeq:build",
     "{{@pkg_manager}} run start",
 ]
 
@@ -38,8 +38,8 @@ run = ["{{@pkg_manager}} run type-check"]
 description = "Lint and type-check in parallel"
 parallel_threads = 2
 run = [
-    "xeq://lint",
-    "xeq://type-check",
+    "xeq:lint",
+    "xeq:type-check",
 ]
 
 [deploy-vercel]

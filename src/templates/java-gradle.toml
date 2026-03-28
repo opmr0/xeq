@@ -4,7 +4,7 @@ gradle = "./gradlew"
 [build]
 description = "Build the project"
 run = [
-    "xeq://test",
+    "xeq:test",
     "{{@gradle}} build",
 ]
 

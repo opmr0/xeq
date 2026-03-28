@@ -8,14 +8,14 @@ run = ["{{@pkg_manager}} install"]
 [dev]
 description = "Start Tauri dev window"
 run = [
-    "xeq://install",
+    "xeq:install",
     "{{@pkg_manager}} run tauri dev",
 ]
 
 [build]
 description = "Build Tauri app for production"
 run = [
-    "xeq://install",
+    "xeq:install",
     "{{@pkg_manager}} run tauri build",
 ]
 

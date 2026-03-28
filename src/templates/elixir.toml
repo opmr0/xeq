@@ -44,7 +44,7 @@ run = ["{{@mix}} ecto.reset"]
 [release]
 description = "Build a production release"
 run = [
-    "xeq://check",
+    "xeq:check",
     "MIX_ENV=prod {{@mix}} release",
 ]
 

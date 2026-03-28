@@ -42,7 +42,7 @@ run = [
 [release]
 description = "Full release: deploy, migrate, notify"
 run = [
-    "xeq://deploy",
-    "xeq://db-migrate",
-    "xeq://notify"
+    "xeq:deploy",
+    "xeq:db-migrate",
+    "xeq:notify"
 ]

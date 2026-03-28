@@ -8,7 +8,7 @@ fn check_recursion(
     script_has_errors: &mut bool,
 ) {
     for cmd in &scripts[name].run {
-        if let Some(target) = cmd.strip_prefix("xeq://") {
+        if let Some(target) = cmd.strip_prefix("xeq:") {
             if visited.contains(&target.to_string()) {
                 err!(
                     "'{}': circular dependency detected, '{}' is already in the call chain: {}",
@@ -58,6 +58,12 @@ pub fn validate(config: &Config) -> bool {
             script_has_errs = true;
         }
 
+        if let Some(s) = &config.default{
+            if scripts.get(s).is_none(){
+                err!("The default script \'{s}\' doesn't exist")
+            };
+        }
+
         if events && script.parallel_threads.is_some() {
             err!(
                 "'{}': events will be ignored in the parallel execution",
@@ -91,7 +97,7 @@ pub fn validate(config: &Config) -> bool {
 
         if script.parallel_threads.is_some() {
             let has_cd = script.run.iter().any(|l| l.starts_with("cd "));
-            let has_nested = script.run.iter().any(|l| l.starts_with("xeq://"));
+            let has_nested = script.run.iter().any(|l| l.starts_with("xeq:"));
             if has_cd {
                 err!("'{}': has 'parallel' but contains a 'cd' command", name);
                 has_errs = true;
@@ -99,7 +105,7 @@ pub fn validate(config: &Config) -> bool {
             }
             if has_nested {
                 err!(
-                    "'{}': has 'parallel' but contains nested 'xeq://' calls",
+                    "'{}': has 'parallel' but contains nested 'xeq:' calls",
                     name
                 );
                 has_errs = true;
@@ -116,10 +122,10 @@ pub fn validate(config: &Config) -> bool {
         }
 
         for cmd in &script.run {
-            if let Some(target) = cmd.strip_prefix("xeq://") {
+            if let Some(target) = cmd.strip_prefix("xeq:") {
                 if !scripts.contains_key(target) {
                     err!(
-                        "'{}': calls 'xeq://{}' but that script doesn't exist",
+                        "'{}': calls 'xeq:{}' but that script doesn't exist",
                         name,
                         target
                     );
@@ -172,6 +178,7 @@ mod tests {
 
     fn make_config(scripts: Scripts) -> Config {
         Config {
+            default: None,
             shell: None,
             vars: None,
             scripts,
@@ -202,7 +209,7 @@ mod tests {
     #[test]
     fn missing_nested_script_is_an_error() {
         let mut scripts = HashMap::new();
-        scripts.insert("build".into(), simple_script(vec!["xeq://nonexistent"]));
+        scripts.insert("build".into(), simple_script(vec!["xeq:nonexistent"]));
         let config = make_config(scripts);
         assert!(validate(&config));
     }
@@ -210,7 +217,7 @@ mod tests {
     #[test]
     fn direct_self_call_is_circular() {
         let mut scripts = HashMap::new();
-        scripts.insert("build".into(), simple_script(vec!["xeq://build"]));
+        scripts.insert("build".into(), simple_script(vec!["xeq:build"]));
         let config = make_config(scripts);
         assert!(validate(&config));
     }
@@ -218,8 +225,8 @@ mod tests {
     #[test]
     fn indirect_circular_dependency_is_caught() {
         let mut scripts = HashMap::new();
-        scripts.insert("a".into(), simple_script(vec!["xeq://b"]));
-        scripts.insert("b".into(), simple_script(vec!["xeq://a"]));
+        scripts.insert("a".into(), simple_script(vec!["xeq:b"]));
+        scripts.insert("b".into(), simple_script(vec!["xeq:a"]));
         let config = make_config(scripts);
         assert!(validate(&config));
     }
@@ -227,8 +234,8 @@ mod tests {
     #[test]
     fn linear_chain_passes() {
         let mut scripts = HashMap::new();
-        scripts.insert("a".into(), simple_script(vec!["xeq://b"]));
-        scripts.insert("b".into(), simple_script(vec!["xeq://c"]));
+        scripts.insert("a".into(), simple_script(vec!["xeq:b"]));
+        scripts.insert("b".into(), simple_script(vec!["xeq:c"]));
         scripts.insert("c".into(), simple_script(vec!["echo done"]));
         let config = make_config(scripts);
         assert!(!validate(&config));
@@ -285,7 +292,7 @@ mod tests {
             "check".into(),
             Script {
                 parallel_threads: Some(4),
-                ..simple_script(vec!["xeq://setup", "cargo test"])
+                ..simple_script(vec!["xeq:setup", "cargo test"])
             },
         );
         scripts.insert("setup".into(), simple_script(vec!["echo setup"]));
@@ -296,7 +303,7 @@ mod tests {
     #[test]
     fn valid_nested_call_passes() {
         let mut scripts = HashMap::new();
-        scripts.insert("deploy".into(), simple_script(vec!["xeq://build"]));
+        scripts.insert("deploy".into(), simple_script(vec!["xeq:build"]));
         scripts.insert("build".into(), simple_script(vec!["cargo build"]));
         let config = make_config(scripts);
         assert!(!validate(&config));

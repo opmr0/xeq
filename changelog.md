@@ -4,6 +4,16 @@ All notable changes to xeq will be documented here.
 
 ---
 
+## 2.4.0 - 2026-03-28
+
+### Added
+- `|` fallback operator for variables — `{{@var | default}}`
+- `default` field to run a script when no script name is provided
+
+### Changed
+- nested script call syntax changed from `xeq://script` to `xeq:script`
+- Ctrl+C kills the current command, Ctrl+C twice within 2s exits xeq
+
 ## 2.3.0 - 2026-03-28
 
 ### Added 

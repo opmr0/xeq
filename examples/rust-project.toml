@@ -37,8 +37,8 @@ run = [
 [publish]
 description = "Full publish pipeline"
 run = [
-    "xeq://check",
-    "xeq://build",
+    "xeq:check",
+    "xeq:build",
     "cargo publish"
 ]
 

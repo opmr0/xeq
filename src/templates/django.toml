@@ -13,7 +13,7 @@ run = [
 [dev]
 description = "Run Django dev server"
 run = [
-    "xeq://migrate",
+    "xeq:migrate",
     "{{@manage}} runserver",
 ]
 

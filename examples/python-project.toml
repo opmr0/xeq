@@ -13,7 +13,7 @@ run = [
 [dev]
 description = "Install dev dependencies"
 run = [
-    "xeq://setup",
+    "xeq:setup",
     "{{@venv}}/bin/pip install -r requirements-dev.txt"
 ]
 
@@ -40,9 +40,9 @@ run = [
 [publish]
 description = "Publish to PyPI"
 run = [
-    "xeq://check",
-    "xeq://test",
-    "xeq://build",
+    "xeq:check",
+    "xeq:test",
+    "xeq:build",
     "{{@venv}}/bin/twine upload dist/*"
 ]
 

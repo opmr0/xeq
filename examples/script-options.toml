@@ -1,5 +1,5 @@
 [lint]
-description = "Lint — quiet by default, toggle with --quiet to see output"
+description = "Lint - quiet by default, toggle with --quiet to see output"
 options = ["quiet"]
 run = [
     "eslint src/",
@@ -16,7 +16,7 @@ run = [
 ]
 
 [build]
-description = "Build — quiet and continues on non-fatal errors"
+description = "Build - quiet and continues on non-fatal errors"
 options = ["quiet", "continue_on_err"]
 run = [
     "tsc --noEmit",
@@ -24,18 +24,18 @@ run = [
 ]
 
 [watch]
-description = "Watch mode — clears screen between runs"
+description = "Watch mode - clears screen between runs"
 options = ["clear"]
 run = [
     "npm run watch"
 ]
 
 [ci]
-description = "CI mode — sequential, strict, no toggles"
+description = "CI mode - sequential, strict, no toggles"
 run = [
-    "xeq://lint",
-    "xeq://test",
-    "xeq://build"
+    "xeq:lint",
+    "xeq:test",
+    "xeq:build"
 ]
 
 # Usage examples:

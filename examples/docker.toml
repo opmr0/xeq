@@ -22,8 +22,8 @@ run = ["docker stop {{@container}}"]
 [restart]
 description = "Stop and start the container"
 run = [
-    "xeq://stop",
-    "xeq://run"
+    "xeq:stop",
+    "xeq:run"
 ]
 
 [logs]
@@ -33,7 +33,7 @@ run = ["docker logs -f {{@container}}"]
 [push]
 description = "Build and push to registry"
 run = [
-    "xeq://build",
+    "xeq:build",
     "docker push {{@image}}:{{@tag}}"
 ]
 

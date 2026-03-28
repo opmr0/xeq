@@ -76,22 +76,27 @@ pub fn replace_vars(
             None => break,
         };
 
-        let key = &line[start + 3..end - 2].to_owned();
+        let inner = &line[start + 3..end - 2];
+        let (key, fallback) = match inner.split_once('|') {
+            Some((k, f)) => (k.trim(), Some(f.trim())),
+            None => (inner.trim(), None),
+        };
 
         let value = match args
             .get(key)
             .or_else(|| local_vars.as_ref()?.get(key))
             .or_else(|| global_vars.as_ref()?.get(key))
         {
-            Some(x) => x,
-            None if allow_empty_vars => &format!("{{{{@{}}}}}", key.clone()),
+            Some(x) => x.clone(),
+            None if fallback.is_some() => fallback.unwrap().to_string(),
+            None if allow_empty_vars => format!("{{{{@{}}}}}", key),
             None => {
                 err!("undefined variable '{{{{@{}}}}}' is not set", key);
                 process::exit(1)
             }
         };
 
-        line.replace_range(start..end, value);
+        line.replace_range(start..end, &value);
         i = start + value.len();
     }
 
@@ -283,7 +288,7 @@ pub fn run(
 
         if parallel.is_some() {
             let has_cd = script.run.iter().any(|l| l.starts_with("cd "));
-            let has_nested = script.run.iter().any(|l| l.starts_with("xeq://"));
+            let has_nested = script.run.iter().any(|l| l.starts_with("xeq:"));
 
             if has_cd || has_nested {
                 return Err(format!(
@@ -291,9 +296,9 @@ pub fn run(
             Remove the parallel option or restructure the script.",
                     script_name,
                     match (has_cd, has_nested) {
-                        (true, true) => "'cd' and nested 'xeq://' calls",
+                        (true, true) => "'cd' and nested 'xeq:' calls",
                         (true, false) => "'cd' commands",
-                        _ => "nested 'xeq://' calls",
+                        _ => "nested 'xeq:' calls",
                     }
                 ));
             }
@@ -390,7 +395,7 @@ pub fn run(
 
         log!(opts.quiet, "[{}/{}] {}", i + 1, total, line.yellow());
 
-        if let Some(name) = line.strip_prefix("xeq://") {
+        if let Some(name) = line.strip_prefix("xeq:") {
             let name = name.to_owned();
             if visited.contains(&name) && !opts.allow_recursion {
                 err!(
@@ -567,12 +572,31 @@ pub fn run(
             .map_err(|e| format!("failed to wait for '{}': {}", line, e))?;
         let duration = start.elapsed().as_secs_f64();
 
+        if status.code().is_none() {
+            log!(
+                opts.quiet,
+                "{}",
+                "command interrupted, press Ctrl+C again to quit".yellow()
+            );
+            std::thread::sleep(std::time::Duration::from_millis(350));
+            continue;
+        }
+
         if !status.success() {
+            if status.code().is_none() {
+                log!(
+                    opts.quiet,
+                    "{}",
+                    "command interrupted, skipping to next".yellow()
+                );
+                continue;
+            }
             err!(
                 "'{}' exited with code {}",
                 line,
                 status.code().unwrap_or(-1)
             );
+
             if let Some(s) = &script.on_error {
                 log!(
                     opts.quiet,

@@ -18,7 +18,7 @@ run = [
 [build-web]
 description = "Build web app"
 run = [
-    "xeq://build-shared",
+    "xeq:build-shared",
     "cd {{@web}}",
     "npm run build"
 ]
@@ -26,7 +26,7 @@ run = [
 [build-mobile]
 description = "Build mobile app"
 run = [
-    "xeq://build-shared",
+    "xeq:build-shared",
     "cd {{@mobile}}",
     "npm run build"
 ]
@@ -34,9 +34,9 @@ run = [
 [build-all]
 description = "Build everything"
 run = [
-    "xeq://build-shared",
-    "xeq://build-web",
-    "xeq://build-mobile"
+    "xeq:build-shared",
+    "xeq:build-web",
+    "xeq:build-mobile"
 ]
 
 [dev-web]
