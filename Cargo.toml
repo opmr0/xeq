@@ -1,6 +1,6 @@
 [package]
 name = "xeq"
-version = "2.4.0"
+version = "2.4.1"
 edition = "2021"
 description = "xeq is a cross-platform CLI tool that runs sequences of commands from a single TOML file, making repetitive tasks fast and consistent."
 license = "MIT"
@@ -31,6 +31,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 threadpool = "1.8.1"
 toml = "1.1.0"
 uuid = { version = "1.23.0", features = ["v4"] }
+which = "8.0.2"
 
 [dev-dependencies]
 tempfile = "3"

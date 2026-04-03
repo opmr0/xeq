@@ -1,4 +1,5 @@
-use crate::types::{Config, ScriptOption, Scripts};
+use crate::types::{Config, Script, ScriptOption, Scripts};
+use which::which;
 
 fn check_recursion(
     name: &str,
@@ -29,7 +30,82 @@ fn check_recursion(
     }
 }
 
-pub fn validate(config: &Config) -> bool {
+fn check_cmds(
+    name: &str,
+    cmds: &[String],
+    scripts: &Scripts,
+    config: &Config,
+    script: &Script,
+    has_errs: &mut bool,
+    script_has_errs: &mut bool,
+    runtime: bool,
+) {
+    for cmd in cmds {
+        if let Some(target) = cmd.strip_prefix("xeq:") {
+            if !scripts.contains_key(target) {
+                err!(
+                    "'{}': calls 'xeq:{}' but that script doesn't exist",
+                    name,
+                    target
+                );
+                *has_errs = true;
+                *script_has_errs = true;
+            }
+        }
+
+        let mut i = 0;
+
+        while let Some(start) = cmd[i..].find("{{@") {
+            let start = i + start;
+            if let Some(end) = cmd[start..].find("}}") {
+                let key = &cmd[start + 3..start + end];
+                let in_global = config.vars.as_ref().is_some_and(|v| v.contains_key(key));
+                let in_local = script.vars.as_ref().is_some_and(|v| v.contains_key(key));
+                if !in_global && !in_local {
+                    log!(
+                        false,
+                        "'{}': '{{{{@{}}}}}' is not defined in vars, must be passed at runtime with --args",
+                        name,
+                        key
+                    );
+                }
+                i = start + end + 2;
+            } else {
+                break;
+            }
+        }
+
+        if runtime {
+            while let Some(start) = cmd[i..].find("{{$") {
+                let start = i + start;
+                if let Some(end) = cmd[start..].find("}}") {
+                    let key = &cmd[start + 3..start + end];
+                    if std::env::var(key).is_err() {
+                        err!("'{}': '{{{{${}}}}}' is not set", name, key);
+                        *has_errs = true;
+                        *script_has_errs = true;
+                    }
+                    i = start + end + 2;
+                } else {
+                    break;
+                }
+            }
+
+            let command_name = cmd.split_whitespace().next().unwrap_or_default();
+            if !command_name.starts_with("xeq:") && which(command_name).is_err() {
+                err!("'{}': '{}' command doesn't exist", name, command_name);
+                *has_errs = true;
+                *script_has_errs = true;
+            }
+        }
+    }
+}
+
+pub fn validate(config: &Config, runtime: bool) -> bool {
+    if runtime {
+        dotenvy::dotenv().ok();
+    }
+
     let mut has_errs = false;
     let scripts = &config.scripts;
 
@@ -47,30 +123,10 @@ pub fn validate(config: &Config) -> bool {
             &mut script_has_errs,
         );
 
-        if events
-            && script
-                .options
-                .as_ref()
-                .is_some_and(|o| o.contains(&ScriptOption::Summary))
-        {
-            err!("'{}': Summary will be ignored because of events", name);
-            has_errs = true;
-            script_has_errs = true;
-        }
-
         if let Some(s) = &config.default {
             if scripts.get(s).is_none() {
-                err!("The default script \'{s}\' doesn't exist")
-            };
-        }
-
-        if events && script.parallel_threads.is_some() {
-            err!(
-                "'{}': events will be ignored in the parallel execution",
-                name
-            );
-            has_errs = true;
-            script_has_errs = true;
+                err!("The default script \'{s}\' doesn't exist");
+            }
         }
 
         if events
@@ -89,7 +145,10 @@ pub fn validate(config: &Config) -> bool {
 
         if let Some(n) = script.parallel_threads {
             if n <= 1 {
-                err!("'{}': parallel_threads must be greater than 1", name);
+                err!(
+                    "'{}': parallel_threads should be greater than 1 to run in parallel",
+                    name
+                );
                 has_errs = true;
                 script_has_errs = true;
             }
@@ -118,41 +177,54 @@ pub fn validate(config: &Config) -> bool {
                 err!("'{}': dir '{}' does not exist", name, dir);
                 has_errs = true;
                 script_has_errs = true;
-            }
-        }
-
-        for cmd in &script.run {
-            if let Some(target) = cmd.strip_prefix("xeq:") {
-                if !scripts.contains_key(target) {
-                    err!(
-                        "'{}': calls 'xeq:{}' but that script doesn't exist",
-                        name,
-                        target
-                    );
+            } else if runtime {
+                let original = std::env::current_dir().ok();
+                if std::env::set_current_dir(dir).is_err() {
+                    err!("'{}': cannot cd into dir '{}'", name, dir);
                     has_errs = true;
                     script_has_errs = true;
                 }
-            }
-
-            let mut i = 0;
-            while let Some(start) = cmd[i..].find("{{@") {
-                let start = i + start;
-                if let Some(end) = cmd[start..].find("}}") {
-                    let key = &cmd[start + 3..start + end];
-                    let in_global = config.vars.as_ref().is_some_and(|v| v.contains_key(key));
-                    let in_local = script.vars.as_ref().is_some_and(|v| v.contains_key(key));
-                    if !in_global && !in_local {
-                        log!(false,
-                            "'{}': '{{{{@{}}}}}' is not defined in vars, must be passed at runtime with --args",
-                            name,
-                            key
-                        );
-                    }
-                    i = start + end + 2;
-                } else {
-                    break;
+                if let Some(orig) = original {
+                    std::env::set_current_dir(orig).ok();
                 }
             }
+        }
+
+        check_cmds(
+            name,
+            &script.run,
+            scripts,
+            config,
+            script,
+            &mut has_errs,
+            &mut script_has_errs,
+            runtime,
+        );
+
+        if let Some(cmds) = &script.on_error {
+            check_cmds(
+                name,
+                cmds,
+                scripts,
+                config,
+                script,
+                &mut has_errs,
+                &mut script_has_errs,
+                runtime,
+            );
+        }
+
+        if let Some(cmds) = &script.on_success {
+            check_cmds(
+                name,
+                cmds,
+                scripts,
+                config,
+                script,
+                &mut has_errs,
+                &mut script_has_errs,
+                runtime,
+            );
         }
 
         if !script_has_errs {
@@ -203,7 +275,7 @@ mod tests {
         let mut scripts = HashMap::new();
         scripts.insert("build".into(), simple_script(vec!["echo hi"]));
         let config = make_config(scripts);
-        assert!(!validate(&config));
+        assert!(!validate(&config, false));
     }
 
     #[test]
@@ -211,7 +283,7 @@ mod tests {
         let mut scripts = HashMap::new();
         scripts.insert("build".into(), simple_script(vec!["xeq:nonexistent"]));
         let config = make_config(scripts);
-        assert!(validate(&config));
+        assert!(validate(&config, false));
     }
 
     #[test]
@@ -219,7 +291,7 @@ mod tests {
         let mut scripts = HashMap::new();
         scripts.insert("build".into(), simple_script(vec!["xeq:build"]));
         let config = make_config(scripts);
-        assert!(validate(&config));
+        assert!(validate(&config, false));
     }
 
     #[test]
@@ -228,7 +300,7 @@ mod tests {
         scripts.insert("a".into(), simple_script(vec!["xeq:b"]));
         scripts.insert("b".into(), simple_script(vec!["xeq:a"]));
         let config = make_config(scripts);
-        assert!(validate(&config));
+        assert!(validate(&config, false));
     }
 
     #[test]
@@ -238,7 +310,7 @@ mod tests {
         scripts.insert("b".into(), simple_script(vec!["xeq:c"]));
         scripts.insert("c".into(), simple_script(vec!["echo done"]));
         let config = make_config(scripts);
-        assert!(!validate(&config));
+        assert!(!validate(&config, false));
     }
 
     #[test]
@@ -254,7 +326,7 @@ mod tests {
         );
         scripts.insert("notify".into(), simple_script(vec!["echo failed"]));
         let config = make_config(scripts);
-        assert!(validate(&config));
+        assert!(validate(&config, false));
     }
 
     #[test]
@@ -268,7 +340,7 @@ mod tests {
             },
         );
         let config = make_config(scripts);
-        assert!(validate(&config));
+        assert!(validate(&config, false));
     }
 
     #[test]
@@ -282,7 +354,7 @@ mod tests {
             },
         );
         let config = make_config(scripts);
-        assert!(validate(&config));
+        assert!(validate(&config, false));
     }
 
     #[test]
@@ -297,7 +369,7 @@ mod tests {
         );
         scripts.insert("setup".into(), simple_script(vec!["echo setup"]));
         let config = make_config(scripts);
-        assert!(validate(&config));
+        assert!(validate(&config, false));
     }
 
     #[test]
@@ -306,6 +378,6 @@ mod tests {
         scripts.insert("deploy".into(), simple_script(vec!["xeq:build"]));
         scripts.insert("build".into(), simple_script(vec!["cargo build"]));
         let config = make_config(scripts);
-        assert!(!validate(&config));
+        assert!(!validate(&config, false));
     }
 }

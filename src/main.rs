@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 use std::collections::HashSet;
@@ -78,9 +78,6 @@ enum Command {
         #[arg(long, help = "Skip loading .env from the current directory")]
         no_env: bool,
 
-        #[arg(short, long, help = "Print a timing summary after the script finishes")]
-        summary: bool,
-
         #[arg(
             short = 'A',
             long,
@@ -126,6 +123,8 @@ enum Command {
             help = "Validate the global config instead of the local one"
         )]
         global: bool,
+        #[arg(short, long, help = "Validate the sssssssssss")]
+        runtime: bool,
     },
     #[clap(
         disable_help_flag = true,
@@ -196,7 +195,6 @@ fn run_cli() -> Result<()> {
             allow_recursion,
             no_env,
             global,
-            summary,
             allow_empty_vars,
             dry_run,
             no_events,
@@ -211,7 +209,6 @@ fn run_cli() -> Result<()> {
                 allow_recursion,
                 no_env,
                 global,
-                summary,
                 allow_empty_vars,
                 dry_run,
                 no_events,
@@ -219,7 +216,7 @@ fn run_cli() -> Result<()> {
         }
         Command::List { global } => cmd_list(global),
         Command::Init { template } => cmd_init(template)?,
-        Command::Validate { global } => cmd_validate(global),
+        Command::Validate { global, runtime } => cmd_validate(global, runtime),
         Command::Toml => {
             let sep = "─".repeat(55).dimmed();
 
@@ -288,7 +285,6 @@ fn run_cli() -> Result<()> {
                 ("clear", "clear terminal before each command"),
                 ("continue_on_err", "keep running if a command fails"),
                 ("allow_recursion", "allow a script to call itself"),
-                ("summary", "print execution summary after run"),
                 ("allow_empty_vars", "skip errors for undefined variables"),
             ];
             for (opt, desc) in options {
@@ -349,7 +345,6 @@ fn cmd_run(
     allow_recursion: bool,
     no_env: bool,
     global: bool,
-    summary: bool,
     allow_empty_vars: bool,
     dry_run: bool,
     no_events: bool,
@@ -370,7 +365,6 @@ fn cmd_run(
         clear,
         parallel,
         allow_recursion,
-        summary,
         allow_empty_vars,
         dry_run,
         no_events,
@@ -393,8 +387,7 @@ fn cmd_run(
                 x
             }
             None => {
-                err!("no script name provided and no default script set");
-                process::exit(1);
+                return Err(anyhow!("no script name provided and no default script set"));
             }
         },
     };
@@ -493,7 +486,7 @@ fn cmd_init(template: Option<String>) -> Result<()> {
     Ok(())
 }
 
-fn cmd_validate(global: bool) {
+fn cmd_validate(global: bool, runtime: bool) {
     log!(
         false,
         "validating scripts in {}:",
@@ -505,7 +498,7 @@ fn cmd_validate(global: bool) {
 
     log!(false, "{}\n", "parsing passed".green());
 
-    if validate(&config) {
+    if validate(&config, runtime) {
         err!("some scripts failed validation");
         process::exit(1);
     } else {

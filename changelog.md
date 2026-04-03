@@ -4,35 +4,57 @@ All notable changes to xeq will be documented here.
 
 ---
 
+## 2.4.1 - 2026-04-03
+
+### Added
+
+- xeq validate --runtime` / `-r`: checks env vars, command existence, and `dir` cd permission
+
+### Changed
+
+- Parallel execution no longer ignores events
+- `parallel_threads <= 1` now falls back to sequential execution instead of erroring
+
+### Removed
+
+- Summary feature
+
+### Fixed
+
+- `on_success` commands not running on success
+
 ## 2.4.0 - 2026-03-28
 
 ### Added
-- `|` fallback operator for variables — `{{@var | default}}`
+
+- `|` fallback operator for variables - `{{@var | default}}`
 - `default` field to run a script when no script name is provided
 
 ### Changed
+
 - nested script call syntax changed from `xeq://script` to `xeq:script`
 - Ctrl+C kills the current command, Ctrl+C twice within 2s exits xeq
 
 ## 2.3.0 - 2026-03-28
 
-### Added 
+### Added
+
 - `--dry-run` / `-d` flag to preview commands without executing them
 - `on_success` and `on_error` field in the config file (events)
 - `--no-event` / `-e` to disable events for this run
 
 ## Changed
+
 - `fallback` field changed to `on_error`
 - xeq reminds you when the script isn't available in the local config and available in the global config
 - make `xeq toml` command output nicer
-- `allow-empty-vars` flag/option apply to environment variables now (for `{{$ENV}}` syntax) 
-
+- `allow-empty-vars` flag/option apply to environment variables now (for `{{$ENV}}` syntax)
 
 ## 2.2.1 - 2026-03-26
 
 ### Fixed
-- xeq detects any number as a placeholder for an argument
 
+- xeq detects any number as a placeholder for an argument
 
 ## 2.2.0 - 2026-03-26
 
@@ -96,9 +118,9 @@ All notable changes to xeq will be documented here.
 
 ### Added
 
-- `--no-env` flag to `xeq run` — skips `.env` file loading for that run
-- `dir` field to scripts — sets the working directory without needing a `cd` command
-- `xeq validate` command — checks all scripts for errors without running them
+- `--no-env` flag to `xeq run` - skips `.env` file loading for that run
+- `dir` field to scripts - sets the working directory without needing a `cd` command
+- `xeq validate` command - checks all scripts for errors without running them
 
 ---
 
@@ -106,20 +128,20 @@ All notable changes to xeq will be documented here.
 
 ### Added
 
-- **Environment variable interpolation** — use `{{$VARNAME}}` in any command to inject a system environment variable at runtime
-- **Automatic `.env` loading** — xeq now loads a `.env` file from the current directory automatically before any script runs, no manual setup needed
-- **`cd` operator support** — `cd` commands now support `&&`, `||`, `;`, `&`, and `!` operators instead of throwing an error
-  - `cd foo && bar` — run `bar` only if `cd` succeeded
-  - `cd foo || bar` — run `bar` only if `cd` failed
-  - `cd foo; bar` — always run `bar` regardless
-  - `cd foo & bar` — spawn `bar` in the background
-  - `! cd foo` — negate the result of `cd`
+- **Environment variable interpolation** - use `{{$VARNAME}}` in any command to inject a system environment variable at runtime
+- **Automatic `.env` loading** - xeq now loads a `.env` file from the current directory automatically before any script runs, no manual setup needed
+- **`cd` operator support** - `cd` commands now support `&&`, `||`, `;`, `&`, and `!` operators instead of throwing an error
+  - `cd foo && bar` - run `bar` only if `cd` succeeded
+  - `cd foo || bar` - run `bar` only if `cd` failed
+  - `cd foo; bar` - always run `bar` regardless
+  - `cd foo & bar` - spawn `bar` in the background
+  - `! cd foo` - negate the result of `cd`
 
 ### Fixed
 
-- **Parallel mode variable substitution** — variables (`{{@var}}`), positional args (`{{1}}`), and environment vars (`{{$VAR}}`) were not being resolved before commands were spawned in parallel mode. All substitution now happens before threads are created
-- **Parallel validation inside loop** — the `cd` and `xeq://` checks were running on every loop iteration instead of once before the loop, causing redundant work and fragile logic
-- **Operator precedence bug on `cd` validation** — `line.starts_with("cd ") && line.contains("&&") || line.contains(";")` was incorrectly matching any line containing `;` due to missing parentheses. This check has been removed entirely in favor of graceful handling
+- **Parallel mode variable substitution** - variables (`{{@var}}`), positional args (`{{1}}`), and environment vars (`{{$VAR}}`) were not being resolved before commands were spawned in parallel mode. All substitution now happens before threads are created
+- **Parallel validation inside loop** - the `cd` and `xeq://` checks were running on every loop iteration instead of once before the loop, causing redundant work and fragile logic
+- **Operator precedence bug on `cd` validation** - `line.starts_with("cd ") && line.contains("&&") || line.contains(";")` was incorrectly matching any line containing `;` due to missing parentheses. This check has been removed entirely in favor of graceful handling
 
 ### Changed
 
@@ -131,10 +153,10 @@ All notable changes to xeq will be documented here.
 
 ### Added
 
-- **Variables system** — define reusable values in a `[vars]` block and reference them in commands with `{{@varname}}`
-- **Local variables** — scripts can define their own vars with `vars.key = "value"` to override global ones for that script only
-- **Named arguments** — `--args` now accepts `key=value` pairs in addition to positional values, allowing named overrides of variables at runtime
-- **Variable resolution order** — `--args` (runtime) -> local vars (per script) -> global vars (file-level). Most specific value always wins.
+- **Variables system** - define reusable values in a `[vars]` block and reference them in commands with `{{@varname}}`
+- **Local variables** - scripts can define their own vars with `vars.key = "value"` to override global ones for that script only
+- **Named arguments** - `--args` now accepts `key=value` pairs in addition to positional values, allowing named overrides of variables at runtime
+- **Variable resolution order** - `--args` (runtime) -> local vars (per script) -> global vars (file-level). Most specific value always wins.
 
 ### Changed
 
@@ -151,13 +173,13 @@ All notable changes to xeq will be documented here.
 
 ### Added
 
-- `--global` / `-g` flag for `xeq run` and `xeq list` — explicitly use the saved global path instead of the local file
-- Local `xeq.toml` auto-detection — xeq now looks for a `xeq.toml` in the current directory first, falling back to the saved path
+- `--global` / `-g` flag for `xeq run` and `xeq list` - explicitly use the saved global path instead of the local file
+- Local `xeq.toml` auto-detection - xeq now looks for a `xeq.toml` in the current directory first, falling back to the saved path
 - `xeq init` creates a new file named `xeq.toml`
 
 ### Changed
 
-- Script `options` now use a typed enum instead of raw strings — unknown options will error at parse time instead of silently doing nothing
+- Script `options` now use a typed enum instead of raw strings - unknown options will error at parse time instead of silently doing nothing
 - Parallel mode now warns when `cd` or `xeq://` commands are skipped instead of silently ignoring them
 
 ---
@@ -166,9 +188,9 @@ All notable changes to xeq will be documented here.
 
 ### Added
 
-- Script `options` array — set default flags per script in the TOML file
-- `--parallel` flag — run all commands in a script concurrently
-- `--allow-recursion` flag — opt into recursive script calls (circular dependency detection enabled by default)
+- Script `options` array - set default flags per script in the TOML file
+- `--parallel` flag - run all commands in a script concurrently
+- `--allow-recursion` flag - opt into recursive script calls (circular dependency detection enabled by default)
 
 ### Changed
 
@@ -187,7 +209,7 @@ All notable changes to xeq will be documented here.
 
 ### Added
 
-- `--args` flag — pass arguments to scripts and reference them with `{{1}}`, `{{2}}`, etc.
+- `--args` flag - pass arguments to scripts and reference them with `{{1}}`, `{{2}}`, etc.
 
 ### Fixed
 
@@ -199,7 +221,7 @@ All notable changes to xeq will be documented here.
 
 ### Added
 
-- Nested scripts via `xeq://script-name` syntax — call other scripts from within a script
+- Nested scripts via `xeq://script-name` syntax - call other scripts from within a script
 
 ---
 
@@ -209,9 +231,9 @@ Initial release.
 
 ### Added
 
-- `xeq config <path>` — save path to your script file
-- `xeq run <script>` — run a named script sequentially
-- `xeq list` — list all scripts and their commands
+- `xeq config <path>` - save path to your script file
+- `xeq run <script>` - run a named script sequentially
+- `xeq list` - list all scripts and their commands
 - `--continue-on-err`, `--quiet`, `--clear` flags
-- `cd` command support — changes working directory for subsequent commands
+- `cd` command support - changes working directory for subsequent commands
 - Cross-platform support: Linux, macOS, Windows

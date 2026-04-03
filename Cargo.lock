@@ -1218,7 +1218,7 @@ dependencies = [
 
 [[package]]
 name = "xeq"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -1236,6 +1236,7 @@ dependencies = [
  "threadpool",
  "toml 1.1.0+spec-1.1.0",
  "uuid",
+ "which",
 ]
 
 [[package]]

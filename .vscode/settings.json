@@ -6,8 +6,10 @@
         "fastapi",
         "Justfile",
         "laravel",
+        "myapp",
         "tauri",
         "threadpool",
-        "varname"
+        "varname",
+        "Virtualenv"
     ]
 }

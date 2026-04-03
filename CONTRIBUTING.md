@@ -1,8 +1,12 @@
-## Contributing
+# Contributing
 
-Contributions are welcome, whether it's a bug fix, a new feature, or an improvement to the docs. [Open an issue](https://github.com/opmr0/xeq/issues).
+Contributions are welcome, bug fixes, new features, or doc improvements.
 
-**Getting started:**
+If you're planning something large, [open an issue](https://github.com/opmr0/xeq/issues) first so we can discuss it before you invest the time.
+
+---
+
+## Getting Started
 
 ```bash
 git clone https://github.com/opmr0/xeq
@@ -11,18 +15,30 @@ cargo build
 cargo test
 ```
 
-**Before submitting a PR:**
+---
 
-- Run `cargo fmt` to format your code
-- Run `cargo clippy` and fix any warnings
-- Run `cargo test` and make sure all tests pass
-- If you're adding a new feature, add tests for it
+## Making Changes
 
-or run:
+- Keep changes focused, one fix or feature per PR
+- Match the existing code style
+- If you're adding a feature, update the README too
+- If you're fixing a bug, explain what caused it in the PR description
+
+---
+
+## Before Submitting
+
+Run `xeq run submit` or manually:
+
 ```bash
-xeq run submit
+cargo fmt
+cargo clippy  # no warnings
+cargo test    # all pass
 ```
-**Project structure:**
+
+---
+
+## Project Structure
 
 ```
 src/
@@ -31,10 +47,19 @@ src/
   runner.rs     # Script execution logic
   types.rs      # Shared types (Script, Scripts, Config, SavedPath)
   macros.rs     # log! and err! macros
-  validation.rs # Validation functions for `xeq validate`
-  templates.rs  # for importing templates from /templates
-  /templates    # templates for `xeq init <template>`
+  validation.rs # Validation logic for xeq validate
+  templates.rs  # Template loading for xeq init
+  templates/    # Built-in init templates
 examples/       # Ready-to-use TOML files
 ```
 
 ---
+
+## Reporting Bugs
+
+Open an issue and include:
+
+- What you ran
+- What you expected
+- What actually happened
+- Your OS and xeq version (`xeq --version`)

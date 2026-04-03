@@ -22,7 +22,6 @@ pub enum ScriptOption {
     Clear,
     ContinueOnErr,
     AllowRecursion,
-    Summary,
     AllowEmptyVars,
 }
 

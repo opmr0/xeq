@@ -33,11 +33,12 @@ Every project has a setup ritual. Ten commands, always in the same order, every 
   - [5. Nested Scripts](#5-nested-scripts)
   - [6. Parallel Execution](#6-parallel-execution)
   - [7. Global Configuration](#7-global-configuration)
-  - [8. Run Summary](#8-run-summary)
-  - [9. Events](#9-events)
-  - [10. Custom Shells](#10-custom-shells)
+  - [8. Events](#8-events)
+  - [9. Custom Shells](#9-custom-shells)
+- [CI Usage](#ci-usage)
 - [Examples](#examples)
 - [How It Works](#how-it-works)
+- [Contributing](#contributing)
 - [License](#license)
 
 ---
@@ -116,7 +117,17 @@ xeq finds `xeq.toml` in the current directory automatically. Use `xeq init` to g
 
 Runs a script by name. Commands execute in order. If any command fails, xeq stops unless you pass `--continue-on-err`.
 
+If no script name is given, xeq runs the `default` script defined in your config:
+
+```toml
+default = "dev"
+
+[dev]
+run = ["npm run dev"]
+```
+
 ```bash
+xeq run        # runs "dev"
 xeq run setup
 xeq run build --continue-on-err
 xeq run dev --quiet
@@ -125,20 +136,21 @@ xeq run create --args my-app
 xeq run deploy --args env=prod
 ```
 
-| Flag                       | Short | Description                                                       |
-| -------------------------- | ----- | ----------------------------------------------------------------- |
-| `--continue-on-err`        | `-C`  | Keep going even if a command fails                                |
-| `--quiet`                  | `-q`  | Hide xeq's own log messages                                       |
-| `--clear`                  | `-c`  | Clear the terminal before each command                            |
-| `--parallel [threads]`     | `-p`  | Run all commands in parallel (default: logical CPU count)         |
-| `--args <values...>`       | `-a`  | Pass arguments into the script, positional or `key=value`         |
-| `--global`                 | `-g`  | Use the globally saved `xeq.toml` instead of the local one       |
-| `--summary`                | `-s`  | Print a timing summary after the script finishes                  |
-| `--dry-run`                | `-d`  | Preview commands without executing them                           |
-| `--no-events`              | `-e`  | Disable events for this run                                       |
-| `--allow-empty-args`       | `-A`  | Skip errors for missing variables or arguments                    |
-| `--no-env`                 |       | Skip loading the `.env` file                                      |
-| `--allow-recursion`        |       | Let a script call itself                                          |
+| Flag                   | Short | Description                                                 |
+| ---------------------- | ----- | ----------------------------------------------------------- |
+| `--continue-on-err`    | `-C`  | Keep going even if a command fails                          |
+| `--quiet`              | `-q`  | Hide xeq's own log messages                                 |
+| `--clear`              | `-c`  | Clear the terminal before each command                      |
+| `--parallel [threads]` | `-p`  | Run all commands in parallel (default: logical CPU count)   |
+| `--args <values...>`   | `-a`  | Pass arguments into the script, positional or `key=value`   |
+| `--global`             | `-g`  | Use the globally saved `xeq.toml` instead of the local one  |
+| `--dry-run`            | `-d`  | Preview commands without executing them                     |
+| `--no-events`          | `-e`  | Disable events for this run                                 |
+| `--allow-empty-args`   | `-A`  | Skip errors for missing variables or arguments              |
+| `--no-env`             |       | Skip loading the `.env` file                                |
+| `--allow-recursion`    |       | Let a script call itself                                    |
+
+**Exit codes:** xeq exits `0` on success and non-zero if any command fails. Use this in CI pipelines or shell scripts to halt on failure.
 
 ---
 
@@ -160,18 +172,33 @@ xeq init docker
 
 Checks all scripts for errors without running anything.
 
+| Check                               | Flag        |
+| ----------------------------------- | ----------- |
+| Circular dependencies               | static      |
+| Missing `xeq:` targets              | static      |
+| `default` script existence          | static      |
+| `continue_on_err` + events conflict | static      |
+| `parallel_threads` <= 1             | static      |
+| `parallel` + `cd`/`xeq:` conflict  | static      |
+| `dir` existence                     | static      |
+| Undefined `{{@var}}`                | static      |
+| `dir` cd permission                 | `--runtime` |
+| Unset `{{$VAR}}` env vars           | `--runtime` |
+| Command existence                   | `--runtime` |
+
+Add `--runtime` to also validate environment variables and system commands:
+
 ```bash
 xeq validate
+xeq validate --runtime
 xeq validate --global
 ```
-
-Catches undefined variables, missing nested scripts, circular dependencies, invalid shells, parallel conflicts, and more.
 
 ---
 
 ### `xeq list`
 
-Shows all scripts in your `xeq.toml` - names, descriptions, and commands.
+Shows all scripts in your `xeq.toml`, names, descriptions, and commands.
 
 ```bash
 xeq list
@@ -226,7 +253,7 @@ run = [
 
 - `run` - required, commands to execute in order
 - `description` - optional, shown in `xeq list`
-- `dir` - optional, working directory (absolute or relative)
+- `dir` - optional, working directory (absolute or relative to where xeq is invoked, not where `xeq.toml` lives)
 - `parallel_threads` - optional, enables parallel execution with a set thread count
 - `options` - optional, baked-in flags. see [Script Options](#1-script-options)
 
@@ -246,7 +273,7 @@ options = ["quiet", "continue_on_err"]
 run = ["cargo build", "cargo test"]
 ```
 
-**Available options:** `quiet`, `clear`, `continue_on_err`, `allow_recursion`, `summary`, `allow_empty_vars`
+**Available options:** `quiet`, `clear`, `continue_on_err`, `allow_recursion`, `allow_empty_vars`
 
 CLI flags toggle script options. If `quiet` is baked in and you pass `--quiet`, it turns quiet off for that run.
 
@@ -293,14 +320,14 @@ run = ["docker push {{@image}}"]          # uses "myapp:latest"
 xeq run build --args image=myapp:hotfix
 ```
 
-**Fallback values** - use `|` to provide a default if a variable isn't set:
+**Fallback values** use `|` to provide a default if a variable isn't set:
 
 ```toml
 [build]
 run = ["docker build -t {{@image | myapp:latest}} ."]
 ```
 
-**Resolution order:** `--args` → local vars → global vars → fallback
+**Resolution order:** `--args` -> local vars -> global vars -> fallback
 
 > If a variable isn't defined and no fallback is set, xeq exits with an error. Pass `--allow-empty-vars` or add `allow_empty_vars` to options to skip this.
 
@@ -344,7 +371,7 @@ Reference environment variables with `{{$VARNAME}}`:
 run = ["deploy --token {{$API_TOKEN}} --env {{$DEPLOY_ENV}}"]
 ```
 
-xeq loads a `.env` file from the current directory automatically:
+xeq loads a `.env` file from the directory where xeq is invoked automatically:
 
 ```bash
 # .env
@@ -406,6 +433,7 @@ xeq run check -p 8    # uses 8 threads
 ```
 
 > Scripts with `cd` commands or `xeq:` calls cannot run in parallel. `xeq validate` catches this.
+> If `parallel_threads` is 1 or less, xeq falls back to sequential execution.
 
 ---
 
@@ -421,25 +449,7 @@ xeq list --global                   # list global scripts
 
 ---
 
-### 8. Run Summary
-
-Pass `--summary` to see every command and how long it took:
-
-```bash
-xeq run build --summary
-```
-
-```
-command                        time   status
---------------------------------------------------
-cargo test                     1.39s  succeeded
-cargo clippy                   0.80s  succeeded
-cargo fmt                      0.26s  succeeded
-```
-
----
-
-### 9. Events
+### 8. Events
 
 Run additional commands when a script succeeds or fails:
 
@@ -450,14 +460,11 @@ on_success = ["echo build passed"]
 on_error = ["echo build failed"]
 ```
 
-**Rules:**
-- Events are ignored during parallel execution
-- Events disable the run summary
-- Events cannot be combined with `continue_on_err`
+> Events cannot be combined with `continue_on_err`.
 
 ---
 
-### 10. Custom Shells
+### 9. Custom Shells
 
 Set a shell at the file level to run all commands with:
 
@@ -471,6 +478,27 @@ run = ["cargo build", "cargo test"]
 **Available shells:** `sh`, `bash`, `zsh`, `fish`, `cmd`, `powershell`
 
 Defaults to `sh` on Linux/macOS and `cmd` on Windows.
+
+---
+
+## CI Usage
+
+xeq works well in CI pipelines. Use `xeq validate --runtime` as a pre-flight check to catch missing commands or unset env vars before anything runs.
+
+**GitHub Actions example:**
+
+```yaml
+- name: Validate config
+  run: xeq validate --runtime
+
+- name: Build
+  run: xeq run build
+
+- name: Test
+  run: xeq run test
+```
+
+xeq exits non-zero on any failure, so your pipeline halts automatically without extra configuration.
 
 ---
 
@@ -502,9 +530,16 @@ The [`examples/`](./examples) folder has ready-to-use TOML files for common work
 - xeq reads `xeq.toml` from the current directory, or a globally saved path with `--global`
 - Commands run through `sh -c` on Linux/macOS and `cmd /C` on Windows by default
 - `cd` commands update the working directory for all subsequent commands in that script
-- Variables resolve in order: `--args` → local vars → global vars → fallback
-- `.env` is loaded automatically before any script runs
+- `dir` is resolved relative to where xeq is invoked, not where `xeq.toml` lives
+- Variables resolve in order: `--args` -> local vars -> global vars -> fallback
+- `.env` is loaded from the invocation directory automatically before any script runs
 - Script names are case-sensitive
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

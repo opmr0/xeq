@@ -2,7 +2,6 @@ use crate::config::read_scripts;
 use crate::types::Config;
 use crate::types::Script;
 use crate::types::ScriptOption::*;
-use colored::Colorize;
 use std::collections::HashMap;
 use std::env;
 use std::path::Path;
@@ -16,31 +15,29 @@ pub struct RunOptions {
     pub quiet: bool,
     pub parallel: Option<usize>,
     pub allow_recursion: bool,
-    pub summary: bool,
     pub allow_empty_vars: bool,
     pub dry_run: bool,
     pub no_events: bool,
 }
 
-struct CommandSummary {
-    command: String,
-    duration: f64,
-    succeeded: bool,
-}
-
 pub fn replace_args(line: &str, args: &[String], allow_empty_vars: bool) -> Result<String, String> {
     let mut line = line.to_owned();
-    let largest_placeholder: usize = line
-        .split_whitespace()
-        .filter(|x| x.starts_with("{{") && x.ends_with("}}"))
-        .map(|x| {
-            x.trim_end_matches("}}")
-                .trim_start_matches("{{")
-                .parse()
-                .unwrap_or(0)
-        })
-        .max()
-        .unwrap_or(0);
+
+    let mut largest_placeholder = 0usize;
+    let mut i = 0;
+    while let Some(start) = line[i..].find("{{") {
+        let start = i + start;
+        if let Some(end) = line[start..].find("}}") {
+            let inner = &line[start + 2..start + end];
+            if let Ok(n) = inner.parse::<usize>() {
+                largest_placeholder = largest_placeholder.max(n);
+            }
+            i = start + end + 2;
+        } else {
+            break;
+        }
+    }
+
     if !args.is_empty() {
         if largest_placeholder > args.len() {
             return Err(format!("not enough arguments `{}`", line));
@@ -221,8 +218,6 @@ pub fn run(
         }
     };
 
-    let mut summary: Vec<CommandSummary> = Vec::new();
-
     if let Some(script_options) = &script.options {
         if script_options.contains(&ContinueOnErr) {
             opts.continue_on_err = !opts.continue_on_err;
@@ -236,9 +231,6 @@ pub fn run(
         if script_options.contains(&AllowRecursion) {
             opts.allow_recursion = !opts.allow_recursion
         }
-        if script_options.contains(&Summary) {
-            opts.summary = !opts.summary
-        }
         if script_options.contains(&AllowEmptyVars) {
             opts.allow_empty_vars = !opts.allow_empty_vars
         }
@@ -249,6 +241,7 @@ pub fn run(
     }
 
     let parallel = match opts.parallel {
+        Some(0) | Some(1) => None,
         Some(x) => Some(x),
         None if script.parallel_threads.is_some()
             && std::env::args().any(|x| x == "-p" || x == "--parallel") =>
@@ -305,9 +298,6 @@ pub fn run(
         }
 
         if let Some(n) = parallel {
-            if n <= 1 {
-                return Err("parallel_threads must be greater than 1".to_owned());
-            }
             log!(opts.quiet, "{}", "running commands in parallel".purple());
 
             let resolved_lines: Vec<String> = script
@@ -369,19 +359,97 @@ pub fn run(
                 });
             }
 
+            pool.join();
+
             drop(tx);
 
             let mut all_succeeded = true;
             for success in rx.iter() {
                 if !success {
                     all_succeeded = false;
-                    if !opts.continue_on_err {
+                    if let Some(s) = &script.on_error {
+                        log!(
+                            opts.quiet,
+                            "script '{}' failed {}",
+                            script_name,
+                            "running on_error commands".purple()
+                        );
+                        let temp_uuid_name = uuid::Uuid::new_v4().to_string();
+                        let mut scripts = config.scripts.clone();
+                        scripts.insert(
+                            temp_uuid_name.clone(),
+                            Script {
+                                run: s.clone(),
+                                on_success: None,
+                                on_error: None,
+                                ..script.clone()
+                            },
+                        );
+
+                        let temp_config = Config {
+                            scripts,
+                            ..(*config).clone()
+                        };
+
+                        let recursion_opts = RunOptions {
+                            parallel: Some(0),
+                            ..opts
+                        };
+
+                        run(
+                            temp_uuid_name,
+                            &temp_config,
+                            visited,
+                            args.clone(),
+                            recursion_opts,
+                            cwd.clone(),
+                        )?;
+                        break;
+                    } else if !opts.continue_on_err {
                         break;
                     }
+                } else if let Some(s) = &script.on_error {
+                    log!(
+                        opts.quiet,
+                        "script '{}' succeeded {}",
+                        script_name,
+                        "running on_success commands".purple()
+                    );
+                    let temp_uuid_name = uuid::Uuid::new_v4().to_string();
+                    let mut scripts = config.scripts.clone();
+                    scripts.insert(
+                        temp_uuid_name.clone(),
+                        Script {
+                            run: s.clone(),
+                            on_success: None,
+                            on_error: None,
+                            ..script.clone()
+                        },
+                    );
+
+                    let temp_config = Config {
+                        scripts,
+                        ..(*config).clone()
+                    };
+
+                    let recursion_opts = RunOptions {
+                        parallel: Some(0),
+                        ..opts
+                    };
+
+                    run(
+                        temp_uuid_name,
+                        &temp_config,
+                        visited,
+                        args.clone(),
+                        recursion_opts,
+                        cwd,
+                    )?;
+                    break;
+                } else if !opts.continue_on_err {
+                    break;
                 }
             }
-
-            pool.join();
 
             if all_succeeded {
                 return Ok(());
@@ -636,13 +704,39 @@ pub fn run(
         } else {
             log!(opts.quiet, "{} in {:.2}s", "done".green(), duration);
         }
-        if opts.summary {
-            summary.push(CommandSummary {
-                command: line,
-                duration,
-                succeeded: status.success(),
-            });
-        }
+    }
+    if let Some(s) = &script.on_success {
+        log!(
+            opts.quiet,
+            "script '{}' succeeded {}",
+            script_name,
+            "running on_success commands".purple()
+        );
+        let temp_uuid_name = uuid::Uuid::new_v4().to_string();
+        let mut scripts = config.scripts.clone();
+        scripts.insert(
+            temp_uuid_name.clone(),
+            Script {
+                run: s.clone(),
+                on_success: None,
+                on_error: None,
+                ..script.clone()
+            },
+        );
+
+        let temp_config = Config {
+            scripts,
+            ..(*config).clone()
+        };
+
+        run(
+            temp_uuid_name,
+            &temp_config,
+            visited,
+            args.clone(),
+            opts,
+            cwd,
+        )?;
     }
     if script.on_error.is_some() || script.on_success.is_some() {
         log!(
@@ -651,33 +745,6 @@ pub fn run(
             script_name,
             "completed".green().bold()
         );
-    }
-
-    if opts.summary && !opts.dry_run && script.on_error.is_none() && script.on_success.is_none() {
-        println!("\n {:<30} time   status", "command");
-        println!("{}", "-".repeat(50));
-        for CommandSummary {
-            command,
-            duration,
-            succeeded,
-        } in &summary
-        {
-            println!(
-                "{:<30} {:.2}s {}",
-                if command.len() > 26 {
-                    format!("{}...", &command[..26])
-                } else {
-                    command.clone()
-                },
-                duration,
-                if *succeeded {
-                    "succeeded".green()
-                } else {
-                    "failed".red()
-                }
-            );
-        }
-        println!();
     }
     Ok(())
 }
