@@ -3,20 +3,3 @@ default = "submit"
 [submit]
 options = ["continue_on_err"]
 run = ["cargo check", "cargo test", "cargo clippy -- -D warnings", "cargo fmt"]
-
-[l]
-run = [
-    "echo",
-    "echo {{$HOME}}",
-    "echo y",
-    "echo y",
-    "echo y",
-    "echo y",
-]
-on_success = [
-    "echo Done \":)\""
-]
-on_error = [
-    "echo Done \":)\""
-]
-

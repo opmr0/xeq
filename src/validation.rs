@@ -30,6 +30,7 @@ fn check_recursion(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn check_cmds(
     name: &str,
     cmds: &[String],
